@@ -6,7 +6,7 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.3.0
+    rev: f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9 # frozen: v4.4.0
     hooks:
       - id: check-added-large-files
       # - id: check-yaml
@@ -17,38 +17,39 @@ repos:
           - --branch=main
 
   - repo: https://github.com/psf/black
-    rev: 22.8.0
+    rev: bf7a16254ec96b084a6caf3d435ec18f0f245cc7 # frozen: 23.3.0
     hooks:
       - id: black
 
   - repo: https://github.com/pycqa/flake8
-    rev: 5.0.4
+    rev: c838a5e98878f17889cfce311e1406d252f87ec5 # frozen: 6.0.0
     hooks:
       - id: flake8
 
   - repo: https://github.com/asottile/reorder_python_imports
-    rev: v3.8.2
+    rev: b5d69d1847cd9a9739b0f4595cc071a58adc4f2c # frozen: v3.9.0
     hooks:
       - id: reorder-python-imports
 
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.0.0-alpha.0
+    # yamllint disable-line rule:line-length
+    rev: 6fd1ced85fc139abd7f5ab4f3d78dab37592cd5e # frozen: v3.0.0-alpha.9-for-vscode
     hooks:
       - id: prettier
         stages: [commit]
 
   - repo: https://github.com/jorisroovers/gitlint
-    rev: v0.17.0
+    rev: acc9d9de6369b76d22cb4167029d2035e8730b98 # frozen: v0.19.1
     hooks:
       - id: gitlint
 
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.28.0
+    rev: 98f2281f56be5503f3851e74556e1122fc18b2a8 # frozen: v1.31.0
     hooks:
       - id: yamllint
 
   - repo: https://github.com/econchick/interrogate
-    rev: 1.5.0
+    rev: e18b9df8debc03a5b76a18d3be693c67b2816378 # frozen: 1.5.0
     hooks:
       - id: interrogate
         args: [-vv, --fail-under=100]
