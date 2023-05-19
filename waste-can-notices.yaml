@@ -137,7 +137,7 @@ variables:
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
   do_notify: >-
-    {%- if input_garbage_sensor < 2 and input_recycling_sensor < 2 -%}
+    {%- if input_garbage_sensor == 1 and input_recycling_sensor == 1 -%}
       true
     {%- else -%}
       false
