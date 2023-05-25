@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Waste Can Notifier (v0.1)
+  name: Waste Can Notifier (v0.2)
 
   description: |
     Basic notifier for use with Rental Control for requesting guest to take out
@@ -29,7 +29,7 @@ blueprint:
         The time each day that the automation will fire to send the
         notification.
       selector:
-        time:
+        time: {}
       default: "09:00:00"
     garbage_sensor:
       name: Sensor for garbage collection
@@ -98,26 +98,17 @@ variables:
   input_recycling_sensor: !input recycling_sensor
 
   # Dates
-  cur_time: "{{ now() }}"
-  cur_day: "{{ as_timestamp(cur_time) | timestamp_custom('%Y-%m-%d') }}"
-  cur_day_int: "{{ int(as_timestamp(cur_day)) }}"
-  tomorrow: "{{ cur_time + timedelta(days = 1) }}"
+  today: "{{ int(as_timestamp(now().date())) }}"
+  tomorrow: "{{ today + 86400 }}"
 
   # Events
   # yamllint disable rule:line-length
   input_rc_event_0: !input rental_control_event_0
-  event_0_start: "{{ as_timestamp(state_attr(input_rc_event_0, 'start'), tomorrow) }}"
-  event_0_start_day: "{{ as_timestamp(event_0_start) | timestamp_custom('%Y-%m-%d') }}"
-  event_0_start_day_int: "{{ int(as_timestamp(event_0_start_day)) }}"
-
-  event_0_end: "{{ as_timestamp(state_attr(input_rc_event_0, 'end'), tomorrow) }}"
-  event_0_end_day: "{{ as_timestamp(event_0_end) | timestamp_custom('%Y-%m-%d') }}"
-  event_0_end_day_int: "{{ int(as_timestamp(event_0_end_day)) }}"
+  event_0_start: "{{ int(as_timestamp(state_attr(input_rc_event_0, 'start').date(), tomorrow)) }}"
+  event_0_end: "{{ int(as_timestamp(state_attr(input_rc_event_0, 'end').date(), tomorrow)) }}"
 
   input_rc_event_1: !input rental_control_event_1
-  event_1_start: "{{ as_timestamp(state_attr(input_rc_event_1, 'start'), tomorrow) }}"
-  event_1_start_day: "{{ as_timestamp(event_1_start) | timestamp_custom('%Y-%m-%d') }}"
-  event_1_start_day_int: "{{ int(as_timestamp(event_1_start_day)) }}"
+  event_1_start: "{{ int(as_timestamp(state_attr(input_rc_event_1, 'start').date(), tomorrow)) }}"
   # yamllint enable
 
   # Notify
@@ -129,49 +120,46 @@ variables:
   input_notify_service: !input notify_service
   input_notify_topic: !input notify_topic
   notify_message: >-
-    {% if states(input_recycling_message) <= 1 %}
+    {%- if int(states(input_recycling_sensor)) <= 1 -%}
       {{ input_recycling_message }}
-    {% else %}
+    {%- else -%}
       {{ input_garbage_message }}
-    {% endif %}
+    {%- endif -%}
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
-  do_notify: >-
-    {%- if input_garbage_sensor == 1 and input_recycling_sensor == 1 -%}
-      true
-    {%- else -%}
-      false
-    {%- endif -%}
+
+condition:
+  or:
+    - "{{ int(states(input_garbage_sensor)) == 1 }}"
+    - "{{ int(states(input_recycling_sensor)) == 1 }}"
 
 action:
-  choose:
-    - alias: Notify Cleaner
-      conditions:
-        - "{{ event_0_end_day_int == cur_date_int }}"
-        - "{{ event_1_start_day_int == cur_date_int }}"
-        - "{{ do_notify }}"
-      sequence:
-        - service: notify.{{ notify_target }}
-          data:
-            title: "{{ input_notify_topic }}"
-            message: "{{ input_cleaner_message }} {{ notify_message }}"
+  - choose:
+      - alias: Notify Owner
+        conditions:
+          - "{{ event_0_start > today }}"
+        sequence:
+          - service: notify.{{ notify_target }}
+            data:
+              title: "{{ input_notify_topic }}"
+              message: "{{ input_owner_message }} {{ notify_message }}"
 
-    - alias: Notify Guest
-      conditions:
-        - "{{ event_0_start_day_int == cur_date_int }}"
-        - "{{ do_notify }}"
-      sequence:
-        - service: notify.{{ notify_target }}
-          data:
-            title: "{{ input_notify_topic }}"
-            message: "{{ input_guest_message }} {{ notify_message }}"
+      - alias: Notify Cleaner
+        conditions:
+          - "{{ event_0_end == today }}"
+          - "{{ event_1_start == today }}"
+        sequence:
+          - service: notify.{{ notify_target }}
+            data:
+              title: "{{ input_notify_topic }}"
+              message: "{{ input_cleaner_message }} {{ notify_message }}"
 
-    - alias: Notify Owner
-      conditions:
-        - "{{ event_0_start_day_int > cur_date_int }}"
-        - "{{ do_notify }}"
-      sequence:
-        - service: notify.{{ notify_target }}
-          data:
-            title: "{{ input_notify_topic }}"
-            message: "{{ input_owner_message }} {{ notify_message }}"
+      - alias: Notify Guest
+        conditions:
+          - "{{ event_0_start <= today }}"
+          - "{{ event_0_end > today }}"
+        sequence:
+          - service: notify.{{ notify_target }}
+            data:
+              title: "{{ input_notify_topic }}"
+              message: "{{ input_guest_message }} {{ notify_message }}"
