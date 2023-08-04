@@ -17,23 +17,23 @@ repos:
           - --branch=main
 
   - repo: https://github.com/psf/black
-    rev: bf7a16254ec96b084a6caf3d435ec18f0f245cc7 # frozen: 23.3.0
+    rev: 193ee766ca496871f93621d6b58d57a6564ff81b # frozen: 23.7.0
     hooks:
       - id: black
 
   - repo: https://github.com/pycqa/flake8
-    rev: c838a5e98878f17889cfce311e1406d252f87ec5 # frozen: 6.0.0
+    rev: 10f4af6dbcf93456ba7df762278ae61ba3120dc6 # frozen: 6.1.0
     hooks:
       - id: flake8
 
   - repo: https://github.com/asottile/reorder_python_imports
-    rev: b5d69d1847cd9a9739b0f4595cc071a58adc4f2c # frozen: v3.9.0
+    rev: ba4e0d3cf2eeb6986169966bbc87b0e4eb2be50f # frozen: v3.10.0
     hooks:
       - id: reorder-python-imports
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     # yamllint disable-line rule:line-length
-    rev: 6fd1ced85fc139abd7f5ab4f3d78dab37592cd5e # frozen: v3.0.0-alpha.9-for-vscode
+    rev: 39f806769667765a1d55ea736d62bb8f72993e01 # frozen: v3.0.1
     hooks:
       - id: prettier
         stages: [commit]
