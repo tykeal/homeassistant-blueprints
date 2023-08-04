@@ -55,7 +55,7 @@ condition:
     state: unlocked
     for:
       hours: 0
-      minutes: !input wait_time | int
+      minutes: !input wait_time
       seconds: 0
   - condition: state
     entity_id: !input door_sensor
