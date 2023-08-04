@@ -27,7 +27,10 @@ blueprint:
       name: Time to wait
       description: Amount of time to wait in minutes before attempting to lock
       selector:
-        time: {}
+        number:
+          min: 0
+          max: 60
+          unit_of_measurement: minutes
       default: 1
 
 mode: single
@@ -39,7 +42,7 @@ trigger:
     to: unlocked
     for:
       hours: 0
-      minutes: !input wait_time | int
+      minutes: !input wait_time
       seconds: 0
   - platform: state
     entity_id:
