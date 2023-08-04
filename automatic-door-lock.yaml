@@ -1,0 +1,65 @@
+---
+# SPDX-License-Identifier: MIT
+blueprint:
+  name: Automatic Door Lock (v0.1)
+
+  description: |
+    Automatically locks a door after a set amount of time. Valdiating that the
+    given door sensor is closed
+
+  domain: automation
+
+  input:
+    door_sensor:
+      name: Door sensor
+      description: Door sensor for lock
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: door
+    lock:
+      name: Lock
+      description: Door lock
+      selector:
+        entity:
+          domain: lock
+    wait_time:
+      name: Time to wait
+      description: Amount of time to wait in minutes before attempting to lock
+      selector:
+        time: {}
+      default: 1
+
+mode: single
+
+trigger:
+  - platform: state
+    entity_id:
+      - !input lock
+    to: unlocked
+    for:
+      hours: 0
+      minutes: !input wait_time | int
+      seconds: 0
+  - platform: state
+    entity_id:
+      - !input door_sensor
+    to: "off"
+
+condition:
+  - condition: state
+    entity_id: !input lock
+    state: unlocked
+    for:
+      hours: 0
+      minutes: !input wait_time | int
+      seconds: 0
+  - condition: state
+    entity_id: !input door_sensor
+    state: "off"
+
+action:
+  - service: lock.lock
+    data: {}
+    target:
+      entity_id: !input lock
