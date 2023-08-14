@@ -105,8 +105,9 @@ action:
                             state: "off"
                         sequence:
                           - service: notify.{{ notify_target }}
-                            data: "Guest {{ slot_name }}"
-                            message: "Guest has checked-in"
+                            data:
+                              title: "Guest {{ slot_name }}"
+                              message: "Guest has checked-in"
                           - service: input_boolean.turn_on
                             data: {}
                             target:
