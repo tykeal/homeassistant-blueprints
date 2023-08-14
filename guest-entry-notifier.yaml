@@ -64,7 +64,6 @@ trigger:
 
 variables:
   input_notify_service: !input notify_service
-  input_guest_entry: !input guest_entry
   input_slot_min: !input slot_min
   input_slot_max: !input slot_max
   slot_name: |-
@@ -102,7 +101,7 @@ action:
                   - choose:
                       - conditions:
                           - condition: state
-                            entity_id: "{{ input_guest_entry }}"
+                            entity_id: !input guest_entry
                             state: "off"
                         sequence:
                           - service: notify.{{ notify_target }}
@@ -111,7 +110,7 @@ action:
                           - service: input_boolean.turn_on
                             data: {}
                             target:
-                              entity_id: "{{ input_guest_entry }}"
+                              entity_id: !input guest_entry
       - alias: Guest checkout
         conditions:
           - condition: trigger
@@ -121,4 +120,4 @@ action:
           - service: input_boolean.turn_off
             data: {}
             target:
-              entity_id: "{{ input_guest_entry }}"
+              entity_id: !input guest_entry
