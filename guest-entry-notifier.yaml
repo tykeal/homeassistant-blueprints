@@ -1,0 +1,124 @@
+---
+# SPDX-License-Identifier: MIT
+blueprint:
+  name: Guest Entry Notifier (v0.1)
+
+  description: |
+    Basic thread starter for use with Rental Control and Zulip
+
+  domain: automation
+
+  input:
+    notify_service:
+      name: Zulip Notify
+      description: |
+        Notify service name to send to. Should be a Zulip (or compatible)
+        notify service
+      default: "zulip"
+    guest_calendar:
+      name: Guest Calendar
+      description: The Calendar used for tracking guest
+      selector:
+        entity:
+          domain: calendar
+    guest_entry:
+      name: Guest Entry Helper
+      description: |
+        Helper boolean for tracking if the guest thread has been starter
+      selector:
+        entity:
+          domain: input_boolean
+      default: "input_boolean.guest_entry"
+    slot_min:
+      name: Minimum slot number
+      description: |
+        The slot number minimum for guests
+      selector:
+        number:
+          min: 1
+          max: 30
+        default: 6
+    slot_max:
+      name: Max slot number
+      description: |
+        The slot number maximum for guests
+      selector:
+        number:
+          min: 1
+          max: 30
+      default: 10
+
+mode: single
+
+trigger:
+  - platform: event
+    event_type: keymaster_lock_state_changed
+    event_data:
+      state: unlocked
+    id: unlock
+  - platform: calendar
+    event: end
+    offset: "0:0:0"
+    entity_id: !input guest_calendar
+    id: guest_checkout
+
+variables:
+  input_notify_service: !input notify_service
+  input_guest_entry: !input guest_entry
+  input_slot_min: !input slot_min
+  input_slot_max: !input slot_max
+  slot_name: |-
+    {%- if trigger.event.data.code_slot_name == "" -%}
+      Manual
+    {%- else -%}
+      {{ trigger.event.data.code_slot_name }}
+    {%- endif -%}
+  verb: |-
+    {%- if trigger.event.data.code_slot_name == "" -%}
+      unlock of
+    {%- else -%}
+      unlocked
+    {%- endif -%}
+  slot_num: "{{ trigger.event_data.code_slot }}"
+  # yamllint disable-line rule:line-length
+  notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
+
+action:
+  - choose:
+      - alias: Door Unlocked
+        conditions:
+          - condition: trigger
+            id:
+              - unlock
+        sequence:
+          - choose:
+              - alias: Guest Check-in Notification
+                conditions:
+                  - condition: and
+                    conditions:
+                      - "{{ slot_num >= input_slot_min }}"
+                      - "{{ slot_num <= input_slot_max }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: state
+                            entity_id: "{{ input_guest_entry }}"
+                            state: "off"
+                        sequence:
+                          - service: notify.{{ notify_target }}
+                            data: "Guest {{ slot_name }}"
+                            message: "Guest has checked-in"
+                          - service: input_boolean.turn_on
+                            data: {}
+                            target:
+                              entity_id: "{{ input_guest_entry }}"
+      - alias: Guest checkout
+        conditions:
+          - condition: trigger
+            id:
+              - guest_checkout
+        sequence:
+          - service: input_boolean.turn_off
+            data: {}
+            target:
+              entity_id: "{{ input_guest_entry }}"
