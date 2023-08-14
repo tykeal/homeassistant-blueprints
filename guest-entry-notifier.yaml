@@ -37,7 +37,7 @@ blueprint:
         number:
           min: 1
           max: 30
-        default: 6
+      default: 6
     slot_max:
       name: Max slot number
       description: |
