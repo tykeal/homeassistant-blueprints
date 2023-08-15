@@ -1,0 +1,115 @@
+---
+# SPDX-License-Identifier: MIT
+blueprint:
+  name: Guest Schedule Notifier (v0.1)
+
+  description: |
+    Adds scheduling updates to a Zulip topic
+
+  domain: automation
+
+  input:
+    notify_service:
+      name: Zulip Notify
+      description: |
+        Notify service name to send to. Should be a Zulip (or compatible)
+        notify service
+      default: "zulip"
+    notify_topic:
+      name: Notification topic
+      description: |
+        The topic that will be used in the Zulip stream
+      default: "Schedule"
+    notify_message_prelude:
+      name: Notification message prelude
+      description: |
+        The flavor text to prelude schedules with
+      default: "Home Assistant schedule update:"
+    notification_schedule:
+      name: Notfication Schedule
+      description: Schedule to check if a notification should be sent
+      selector:
+        entity:
+          domain: schedule
+    notification_time:
+      name: Time to send standard updates
+      description: |
+        The time that the automation will fire to send the weekly notification.
+      selector:
+        time: {}
+      default: "09:00:00"
+    rental_control_event_0:
+      name: Primary Rental Control Event
+      description: The current or exiting guest event
+      selector:
+        entity:
+          integration: rental_control
+          domain: sensor
+    rental_control_event_1:
+      name: Secondary Rental Control Event
+      description: The next guest event
+      selector:
+        entity:
+          integration: rental_control
+          domain: sensor
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id:
+      - !input rental_control_event_0
+      - !input rental_control_event_1
+    attribute: start
+    id: updated_state
+  - platform: time
+    at: !input notification_time
+    id: time_notification
+
+variables:
+  # inputs
+  input_notify_service: !input notify_service
+  input_notify_topic: !input notify_topic
+  input_notify_message_prelude: !input notify_message_prelude
+  input_event_0: !input rental_control_event_0
+  input_event_1: !input rental_control_event_1
+
+  # events
+  # yamllint disable rule:line-length
+  event_0: |
+    {%- if 'No reservation' not in states(input_event_0) -%}
+      * {{ as_timestamp(state_attr(input_event_0, 'start')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }} - {{ as_timestamp(state_attr(input_event_0, 'end')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }}
+    {%- else -%}
+      * No reservations scheduled
+    {%- endif -%}
+  event_1: |
+    {%- if 'No reservation' not in states(input_event_1) -%}
+      * {{ as_timestamp(state_attr(input_event_1, 'start')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }} - {{ as_timestamp(state_attr(input_event_1, 'end')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }}
+    {%- endif -%}
+  # yamllint enable rule:line-length
+  notify_message: |
+    {{ input_notify_message_prelude }}
+    {{ event_0 }}
+    {{ event_1 }}
+
+  # yamllint disable-line rule:line-length
+  notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
+
+condition:
+  or:
+    - condition: trigger
+      id:
+        - updated_state
+    - and:
+        - condition: state
+          entity_id: !input notification_schedule
+          state: "on"
+        - condition: trigger
+          id:
+            - time_notification
+
+action:
+  - service: notify.{{ notify_target }}
+    data:
+      title: "{{ input_notify_topic }}"
+      message: "{{ notify_message }}"
