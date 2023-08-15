@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.1)
+  name: Guest Entry Notifier (v0.2)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -56,6 +56,14 @@ trigger:
     event_data:
       state: unlocked
     id: unlock
+    variables:
+      slot_name: |-
+        {%- if trigger.event.data.code_slot_name == "" -%}
+          Manual
+        {%- else -%}
+          {{ trigger.event.data.code_slot_name }}
+        {%- endif -%}
+      slot_num: "{{ trigger.event.data.code_slot }}"
   - platform: calendar
     event: end
     offset: "0:0:0"
@@ -66,19 +74,6 @@ variables:
   input_notify_service: !input notify_service
   input_slot_min: !input slot_min
   input_slot_max: !input slot_max
-  slot_name: |-
-    {%- if trigger.event.data.code_slot_name == "" -%}
-      Manual
-    {%- else -%}
-      {{ trigger.event.data.code_slot_name }}
-    {%- endif -%}
-  verb: |-
-    {%- if trigger.event.data.code_slot_name == "" -%}
-      unlock of
-    {%- else -%}
-      unlocked
-    {%- endif -%}
-  slot_num: "{{ trigger.event_data.code_slot }}"
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
 
@@ -97,21 +92,17 @@ action:
                     conditions:
                       - "{{ slot_num >= input_slot_min }}"
                       - "{{ slot_num <= input_slot_max }}"
+                      - condition: state
+                        entity_id: !input guest_entry
+                        state: "off"
                 sequence:
-                  - choose:
-                      - conditions:
-                          - condition: state
-                            entity_id: !input guest_entry
-                            state: "off"
-                        sequence:
-                          - service: notify.{{ notify_target }}
-                            data:
-                              title: "Guest {{ slot_name }}"
-                              message: "Guest has checked-in"
-                          - service: input_boolean.turn_on
-                            data: {}
-                            target:
-                              entity_id: !input guest_entry
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: !input guest_entry
+                  - service: notify.{{ notify_target }}
+                    data:
+                      title: "Guest {{ slot_name }}"
+                      message: "Guest has checked-in"
       - alias: Guest checkout
         conditions:
           - condition: trigger
@@ -119,6 +110,5 @@ action:
               - guest_checkout
         sequence:
           - service: input_boolean.turn_off
-            data: {}
             target:
               entity_id: !input guest_entry
