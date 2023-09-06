@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Schedule Notifier (v0.1)
+  name: Guest Schedule Notifier (v0.2)
 
   description: |
     Adds scheduling updates to a Zulip topic
@@ -61,6 +61,12 @@ trigger:
       - !input rental_control_event_0
       - !input rental_control_event_1
     attribute: start
+    id: updated_state
+  - platform: state
+    entity_id:
+      - !input rental_control_event_0
+      - !input rental_control_event_1
+    attribute: end
     id: updated_state
   - platform: time
     at: !input notification_time
