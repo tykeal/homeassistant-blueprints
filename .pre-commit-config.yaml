@@ -33,7 +33,7 @@ repos:
 
   - repo: https://github.com/pre-commit/mirrors-prettier
     # yamllint disable-line rule:line-length
-    rev: 39f806769667765a1d55ea736d62bb8f72993e01 # frozen: v3.0.1
+    rev: fc260393cc4ec09f8fc0a5ba4437f481c8b55dc1 # frozen: v3.0.3
     hooks:
       - id: prettier
         stages: [commit]
