@@ -1,0 +1,247 @@
+---
+# SPDX-License-Identifier: MIT
+blueprint:
+  name: Airbnb Thermostat Schedule Manager (v0.1)
+
+  description: |
+    Manage thermostat schedules based on guest schedule and weather report /
+    season
+
+  domain: automation
+
+  input:
+    daily_run_time:
+      name: Time to run each day
+      description: Time to run each day for temperature based schedule forcing
+      selector:
+        time: {}
+      default: "08:00:00"
+    force_winter:
+      name: Force Winter High (when in spring or autumn)
+      description: Daily high that forces winter schedule
+      selector:
+        number:
+          min: 35
+          max: 100
+          unit_of_measurement: "°F"
+        default: 65
+    forecast:
+      name: High temperature forecast
+      description: The high temperature forecast for the day
+      selector:
+        entity:
+          filter:
+            - integration: openweathermap
+              domain: sensor
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: The calendar to track for event status
+      selector:
+        entity:
+          filter:
+            - integration: rental_control
+              domain: calendar
+    rental_control_event_0:
+      name: Primary Rental Control Event
+      description: The current or exiting guest event
+      selector:
+        entity:
+          filter:
+            - integration: rental_control
+              domain: sensor
+    rental_control_event_1:
+      name: Secondary Rental Control Event
+      description: The next guest event
+      selector:
+        entity:
+          filter:
+            - integration: rental_control
+              domain: sensor
+    schedule_custom:
+      name: Custom guest schedule
+      description: Custom Guest thermostat schedule
+      selector:
+        entity:
+          filter:
+            - integration: scheduler
+              domain: switch
+    schedule_no_guest:
+      name: No guest schedule
+      description: Thermostat schedule for when no guest
+      selector:
+        entity:
+          filter:
+            - integration: scheduler
+              domain: switch
+    schedule_summer:
+      name: Summer schedule
+      description: Thermostat schedule for summer
+      selector:
+        entity:
+          filter:
+            - integration: scheduler
+              domain: switch
+    schedule_winter:
+      name: Winter schedule
+      description: Thermostat schedule for winter
+      selector:
+        entity:
+          filter:
+            - integration: scheduler
+              domain: switch
+    season:
+      name: Season
+      description: Season sensor
+      selector:
+        entity:
+          filter:
+            - integration: season
+              domain: sensor
+
+mode: restart
+
+trigger:
+  - platform: state
+    entity_id:
+      - !input rental_control_event_0
+    attribute: description
+    for:
+      hours: 1
+      minutes: 0
+      seconds: 0
+    id: rc0_description
+  - platform: time
+    at: !input daily_run_time
+    id: daily_run
+  - platform: numeric_state
+    entity_id: !input rental_control_event_0
+    attribute: eta_minutes
+    below: 180
+    id: Guests
+  - platform: numeric_state
+    entity_id: !input rental_control_event_1
+    attribute: eta_minutes
+    below: 180
+    id: Guests
+  - platform: state
+    entity_id:
+      - !input rental_control_calendar
+    to: "on"
+    id: Guests
+
+variables:
+  # inputs
+  input_event_0: !input rental_control_event_0
+  input_event_1: !input rental_control_event_1
+  input_forecast: !input forecast
+  input_force_winter: !input force_winter
+  input_schedule_custom: !input schedule_custom
+  input_schedule_no_guest: !input schedule_no_guest
+  input_schedule_summer: !input schedule_summer
+  input_schedule_winter: !input schedule_winter
+
+  # yamllint disable rule:line-length
+  no_guests: >-
+    {%- if 'No reservation' in states(input_event_0) or 1 <= state_attr(input_event_0, 'eta_days') -%}
+      true
+    {%- else -%}
+      false
+    {%- endif -%}
+  # yamllint enable rule:line-length
+
+action:
+  - choose:
+      # Switch to No Guests mode
+      - conditions: "{{ no_guests }}"
+        sequence:
+          # disable all of the schedules
+          - service: switch.turn_off
+            data: {}
+            target:
+              entity_id:
+                - input_schedule_custom
+                - input_schedule_no_guest
+                - input_schedule_summer
+                - input_schedule_winter
+          # Wait for the schedules to normalize
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 1
+              milliseconds: 0
+          # Turn on no guest schedule
+          - service: switch.turn_on
+            data: {}
+            target:
+              entity_id:
+                - input_schedule_no_guest
+
+      # Calendar triggered guest mode or daily run when no custom schedule
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: trigger
+                id: Guests
+              - condition: and
+                conditions:
+                  - condition: trigger
+                    id: daily_run
+                  - condition: state
+                    entity_id: input_schedule_custom
+                    state: "off"
+
+        sequence:
+          # disable all of the schedules
+          - service: switch.turn_off
+            data: {}
+            target:
+              entity_id:
+                - input_schedule_custom
+                - input_schedule_no_guest
+                - input_schedule_summer
+                - input_schedule_winter
+          # Wait for the schedules to normalize
+          - delay:
+              hours: 0
+              minutes: 0
+              seconds: 1
+              milliseconds: 0
+          - choose:
+              # winter
+              - conditions:
+                  - condition: state
+                    entity_id: !input season
+                    state: winter
+                sequence:
+                  - service: switch.turn_on
+                    data: {}
+                    target: input_schedule_winter
+
+              # summer
+              - conditions:
+                  - condition: state
+                    entity_id: !input season
+                    state: summer
+                sequence:
+                  - service: switch.turn_on
+                    data: {}
+                    target: input_schedule_summer
+
+            # spring or autumn, we select the schedule based on the daily high
+            default:
+              - choose:
+                  # force winter
+                  - conditions:
+                      - condition: numeric_state
+                        entity_id: input_forecast
+                        below: input_force_winter
+                    sequence:
+                      - service: switch.turn_on
+                        data: {}
+                        target: input_schedule_winter
+
+                # default to summer mode
+                default:
+                  - service: switch.turn_on
+                    data: {}
+                    target: input_schedule_summer
