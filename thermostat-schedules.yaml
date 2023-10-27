@@ -24,7 +24,7 @@ blueprint:
           min: 35
           max: 100
           unit_of_measurement: "°F"
-        default: 65
+      default: 65
     forecast:
       name: High temperature forecast
       description: The high temperature forecast for the day
