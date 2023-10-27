@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Airbnb Thermostat Schedule Manager (v0.1)
+  name: Airbnb Thermostat Schedule Manager (v0.2)
 
   description: |
     Manage thermostat schedules based on guest schedule and weather report /
@@ -133,12 +133,6 @@ variables:
   # inputs
   input_event_0: !input rental_control_event_0
   input_event_1: !input rental_control_event_1
-  input_forecast: !input forecast
-  input_force_winter: !input force_winter
-  input_schedule_custom: !input schedule_custom
-  input_schedule_no_guest: !input schedule_no_guest
-  input_schedule_summer: !input schedule_summer
-  input_schedule_winter: !input schedule_winter
 
   # yamllint disable rule:line-length
   no_guests: >-
@@ -159,10 +153,10 @@ action:
             data: {}
             target:
               entity_id:
-                - input_schedule_custom
-                - input_schedule_no_guest
-                - input_schedule_summer
-                - input_schedule_winter
+                - !input schedule_custom
+                - !input schedule_no_guest
+                - !input schedule_summer
+                - !input schedule_winter
           # Wait for the schedules to normalize
           - delay:
               hours: 0
@@ -174,7 +168,7 @@ action:
             data: {}
             target:
               entity_id:
-                - input_schedule_no_guest
+                - !input schedule_no_guest
 
       # Calendar triggered guest mode or daily run when no custom schedule
       - conditions:
@@ -187,7 +181,7 @@ action:
                   - condition: trigger
                     id: daily_run
                   - condition: state
-                    entity_id: input_schedule_custom
+                    entity_id: !input schedule_custom
                     state: "off"
 
         sequence:
@@ -196,10 +190,10 @@ action:
             data: {}
             target:
               entity_id:
-                - input_schedule_custom
-                - input_schedule_no_guest
-                - input_schedule_summer
-                - input_schedule_winter
+                - !input schedule_custom
+                - !input schedule_no_guest
+                - !input schedule_summer
+                - !input schedule_winter
           # Wait for the schedules to normalize
           - delay:
               hours: 0
@@ -215,7 +209,7 @@ action:
                 sequence:
                   - service: switch.turn_on
                     data: {}
-                    target: input_schedule_winter
+                    target: !input schedule_winter
 
               # summer
               - conditions:
@@ -225,7 +219,7 @@ action:
                 sequence:
                   - service: switch.turn_on
                     data: {}
-                    target: input_schedule_summer
+                    target: !input schedule_summer
 
             # spring or autumn, we select the schedule based on the daily high
             default:
@@ -233,15 +227,15 @@ action:
                   # force winter
                   - conditions:
                       - condition: numeric_state
-                        entity_id: input_forecast
-                        below: input_force_winter
+                        entity_id: !input forecast
+                        below: !input force_winter
                     sequence:
                       - service: switch.turn_on
                         data: {}
-                        target: input_schedule_winter
+                        target: !input schedule_winter
 
                 # default to summer mode
                 default:
                   - service: switch.turn_on
                     data: {}
-                    target: input_schedule_summer
+                    target: !input schedule_summer
