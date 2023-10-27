@@ -6,7 +6,7 @@ ci:
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9 # frozen: v4.4.0
+    rev: c4a0b883114b00d8d76b479c820ce7950211c99b # frozen: v4.5.0
     hooks:
       - id: check-added-large-files
       # - id: check-yaml
@@ -17,7 +17,7 @@ repos:
           - --branch=main
 
   - repo: https://github.com/psf/black
-    rev: 193ee766ca496871f93621d6b58d57a6564ff81b # frozen: 23.7.0
+    rev: 744d23b34800c06e10272149b70752396e90eeb8 # frozen: 23.10.1
     hooks:
       - id: black
 
@@ -27,7 +27,7 @@ repos:
       - id: flake8
 
   - repo: https://github.com/asottile/reorder_python_imports
-    rev: ba4e0d3cf2eeb6986169966bbc87b0e4eb2be50f # frozen: v3.10.0
+    rev: ae11ccbd838e90f7e2a16abbed9276e6a41cafbb # frozen: v3.12.0
     hooks:
       - id: reorder-python-imports
 
