@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Waste Can Notifier (v0.2)
+  name: Waste Can Notifier (v0.3)
 
   description: |
     Basic notifier for use with Rental Control for requesting guest to take out
@@ -104,13 +104,27 @@ variables:
   # Events
   # yamllint disable rule:line-length
   input_rc_event_0: !input rental_control_event_0
-  event_0_start: "{{ int(as_timestamp(state_attr(input_rc_event_0, 'start').date(), tomorrow)) }}"
-  event_0_end: "{{ int(as_timestamp(state_attr(input_rc_event_0, 'end').date(), tomorrow)) }}"
+  event_0_start: >-
+    {%- if state_attr(input_rc_event_0, 'start') != none -%}
+      {{ int(as_timestamp(state_attr(input_rc_event_0, 'start').date(), tomorrow)) }}
+    {%- else -%}
+      {{ tomorrow }}
+    {%- endif -%}
+  event_0_end: >-
+    {%- if state_attr(input_rc_event_0, 'end') != none -%}
+      {{ int(as_timestamp(state_attr(input_rc_event_0, 'end').date(), tomorrow)) }}
+    {%- else -%}
+      {{ tomorrow }}
+    {%- endif -%}
 
   input_rc_event_1: !input rental_control_event_1
-  event_1_start: "{{ int(as_timestamp(state_attr(input_rc_event_1, 'start').date(), tomorrow)) }}"
+  event_1_start: >-
+    {% if state_attr(input_rc_event_1, 'start') != none -%}
+      {{ int(as_timestamp(state_attr(input_rc_event_1, 'start').date(), tomorrow)) }}
+    {%- else -%}
+      {{ tomorrow }}
+    {%- endif -%}
   # yamllint enable
-
   # Notify
   input_garbage_message: !input garbage_message
   input_recycling_message: !input recycling_message
