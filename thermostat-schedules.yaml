@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Airbnb Thermostat Schedule Manager (v0.4)
+  name: Airbnb Thermostat Schedule Manager (v0.4.1)
 
   description: |
     Manage thermostat schedules based on guest schedule and weather report /
@@ -141,7 +141,10 @@ variables:
 
   # yamllint disable rule:line-length
   no_guests: >-
-    {%- if 'No reservation' in states(input_event_0) or 1 <= state_attr(input_event_0, 'eta_days') -%}
+    {%- if ('No reservation' in states(input_event_0) and
+      state_attr(input_event_0, 'eta_days') is none) or
+      (state_attr(input_event_0, 'eta_days') is not none and
+      1 <= state_attr(input_event_0, 'eta_days')) -%}
       true
     {%- else -%}
       false
