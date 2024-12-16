@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Airbnb Thermostat Schedule Manager (v0.3)
+  name: Airbnb Thermostat Schedule Manager (v0.4)
 
   description: |
     Manage thermostat schedules based on guest schedule and weather report /
@@ -31,7 +31,7 @@ blueprint:
       selector:
         entity:
           filter:
-            - integration: openweathermap
+            - device_class: temperature
               domain: sensor
     rental_control_calendar:
       name: Rental Control Calendar
