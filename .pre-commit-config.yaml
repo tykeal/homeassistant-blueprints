@@ -17,16 +17,16 @@ repos:
           - --branch=main
 
   - repo: https://github.com/psf/black
-    rev: 1b2427a2b785cc4aac97c19bb4b9a0de063f9547 # frozen: 24.10.0
+    rev: 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b  # frozen: 25.1.0
     hooks:
       - id: black
 
   - repo: https://github.com/pycqa/flake8
-    rev: e43806be3607110919eff72939fda031776e885a # frozen: 7.1.1
+    rev: bddd87797f8dfc07d2a10c894776018d9bec590b  # frozen: 7.1.2
     hooks:
       - id: flake8
 
-  - repo: https://github.com/asottile/reorder_python_imports
+  - repo: https://github.com/asottile/reorder-python-imports
     rev: fd0b4e1292716bcd12a396b86af1d1271aaaa62c # frozen: v3.14.0
     hooks:
       - id: reorder-python-imports
@@ -36,7 +36,7 @@ repos:
     rev: f12edd9c7be1c20cfa42420fd0e6df71e42b51ea # frozen: v4.0.0-alpha.8
     hooks:
       - id: prettier
-        stages: [commit]
+        stages: [pre-commit]
 
   - repo: https://github.com/jorisroovers/gitlint
     rev: acc9d9de6369b76d22cb4167029d2035e8730b98 # frozen: v0.19.1
