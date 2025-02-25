@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Schedule Notifier (v0.2)
+  name: Guest Schedule Notifier (v0.3)
 
   description: |
     Adds scheduling updates to a Zulip topic
@@ -52,6 +52,13 @@ blueprint:
         entity:
           integration: rental_control
           domain: sensor
+    uptime_sensor:
+      name: Uptime Sensor
+      description: The uptime sensor to use
+      selector:
+        entity:
+          integration: uptime
+          domain: sensor
 
 mode: restart
 
@@ -79,6 +86,9 @@ variables:
   input_notify_message_prelude: !input notify_message_prelude
   input_event_0: !input rental_control_event_0
   input_event_1: !input rental_control_event_1
+  input_uptime_sensor: !input uptime_sensor
+  # yamllint disable-line rule:line-length
+  uptime_seconds: "{{ (now() - as_datetime(states(input_uptime_sensor))).seconds | int }}"
 
   # events
   # yamllint disable rule:line-length
@@ -101,18 +111,22 @@ variables:
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
 
-condition:
-  or:
-    - condition: trigger
-      id:
-        - updated_state
-    - and:
-        - condition: state
-          entity_id: !input notification_schedule
-          state: "on"
-        - condition: trigger
-          id:
-            - time_notification
+conditions:
+  - condition: template
+    value_template: "{{ uptime_seconds >= 120 }}"
+  - condition: or
+    conditions:
+      - condition: trigger
+        id:
+          - updated_state
+      - condition: and
+        conditions:
+          - condition: state
+            entity_id: !input notification_schedule
+            state: "on"
+          - condition: trigger
+            id:
+              - time_notification
 
 action:
   - service: notify.{{ notify_target }}
