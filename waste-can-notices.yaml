@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Waste Can Notifier (v0.3)
+  name: Waste Can Notifier (v0.4)
 
   description: |
     Basic notifier for use with Rental Control for requesting guest to take out
@@ -161,7 +161,6 @@ action:
       - alias: Notify Cleaner
         conditions:
           - "{{ event_0_end == today }}"
-          - "{{ event_1_start == today }}"
         sequence:
           - service: notify.{{ notify_target }}
             data:
