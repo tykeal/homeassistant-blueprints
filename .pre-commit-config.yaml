@@ -22,12 +22,12 @@ repos:
       - id: black
 
   - repo: https://github.com/pycqa/flake8
-    rev: bddd87797f8dfc07d2a10c894776018d9bec590b  # frozen: 7.1.2
+    rev: 4b5e89b4b108a6c1a000c591d334a99a80d34c7b  # frozen: 7.2.0
     hooks:
       - id: flake8
 
-  - repo: https://github.com/asottile/reorder_python_imports
-    rev: fd0b4e1292716bcd12a396b86af1d1271aaaa62c # frozen: v3.14.0
+  - repo: https://github.com/asottile/reorder-python-imports
+    rev: 48a80feb65ccf330db459a7bcae448e05e6c1a13  # frozen: v3.15.0
     hooks:
       - id: reorder-python-imports
 
@@ -37,7 +37,7 @@ repos:
       - id: gitlint
 
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: 81e9f98ffd059efe8aa9c1b1a42e5cce61b640c6 # frozen: v1.35.1
+    rev: 79a6b2b1392eaf49cdd32ac4f14be1a809bbd8f7  # frozen: v1.37.1
     hooks:
       - id: yamllint
 
