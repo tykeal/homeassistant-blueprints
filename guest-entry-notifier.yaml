@@ -72,7 +72,6 @@ blueprint:
         guests will be in the same topic.
       selector:
         boolean:
-          mode: toggle
       default: false
 
 mode: single
