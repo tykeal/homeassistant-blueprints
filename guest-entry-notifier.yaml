@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.2)
+  name: Guest Entry Notifier (v0.3)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -29,6 +29,18 @@ blueprint:
         entity:
           domain: input_boolean
       default: "input_boolean.guest_entry"
+    lock:
+      name: Keymaster Lock
+      description: |
+        The Keymaster lock to monitor for unlock events
+      selector:
+        entity:
+          domain: lock
+          device_class: keymaster
+          multiple: false
+          filter:
+            include_domains: keymaster
+      default: "lock.front_door"
     slot_min:
       name: Minimum slot number
       description: |
@@ -47,6 +59,25 @@ blueprint:
           min: 1
           max: 30
       default: 10
+    topic:
+      name: Zulip Topic
+      description: |
+        The Zulip topic to use for guest notifications. If left blank, the topic
+        will be set to the slot number.
+      selector:
+        text:
+          multiline: false
+          mode: text
+      default: ""
+    separate_topics:
+      name: Separate Topics
+      description: |
+        If true, each guest will have their own Zulip topic. If false, all
+        guests will be in the same topic.
+      selector:
+        boolean:
+          mode: toggle
+      default: false
 
 mode: single
 
@@ -64,6 +95,7 @@ trigger:
           {{ trigger.event.data.code_slot_name }}
         {%- endif -%}
       slot_num: "{{ trigger.event.data.code_slot }}"
+      lock: "{{ trigger.event.data.entity_id }}"
   - platform: calendar
     event: end
     offset: "0:0:0"
@@ -72,10 +104,13 @@ trigger:
 
 variables:
   input_notify_service: !input notify_service
+  input_lock: !input lock
+  input_separate_topics: !input separate_topics
   input_slot_min: !input slot_min
   input_slot_max: !input slot_max
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
+  input_topic: !input topic
 
 action:
   - choose:
@@ -92,6 +127,7 @@ action:
                     conditions:
                       - "{{ slot_num >= input_slot_min }}"
                       - "{{ slot_num <= input_slot_max }}"
+                      - "{{ lock == input_lock }}"
                       - condition: state
                         entity_id: !input guest_entry
                         state: "off"
@@ -101,7 +137,8 @@ action:
                       entity_id: !input guest_entry
                   - service: notify.{{ notify_target }}
                     data:
-                      title: "Guest {{ slot_name }}"
+                      # yamllint disable-line rule:line-length
+                      title: "Guest {% if input_separate_topics %}{{ slot_name }}{% else %}{{ input_topic }}{%- endif -%}"
                       message: "Guest has checked-in"
       - alias: Guest checkout
         conditions:
