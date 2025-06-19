@@ -1,8 +1,14 @@
 ---
 ci:
-  autofix_commit_msg: "Chore: pre-commit autofixes"
+  autofix_commit_msg: |
+    Chore: pre-commit autofixes
+
+    Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@users.noreply.github.com>
+  autoupdate_commit_msg: |
+    Chore: pre-commit autoupdate
+
+    Signed-off-by: pre-commit-ci[bot] <pre-commit-ci@users.noreply.github.com>
   autofix_prs: false
-  autoupdate_commit_msg: "Chore: pre-commit autoupdate"
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
