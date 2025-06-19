@@ -63,7 +63,7 @@ blueprint:
       selector:
         text:
           multiline: false
-          mode: text
+          type: text
       default: ""
     separate_topics:
       name: Separate Topics
