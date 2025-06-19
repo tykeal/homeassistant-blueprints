@@ -36,10 +36,6 @@ blueprint:
       selector:
         entity:
           domain: lock
-          device_class: keymaster
-          multiple: false
-          filter:
-            include_domains: keymaster
       default: "lock.front_door"
     slot_min:
       name: Minimum slot number
