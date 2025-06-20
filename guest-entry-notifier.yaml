@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.3)
+  name: Guest Entry Notifier (v0.4)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -59,20 +59,12 @@ blueprint:
       name: Zulip Topic
       description: |
         The Zulip topic to use for guest notifications. If left blank, the topic
-        will be set to the slot number.
+        will be set to the slot name.
       selector:
         text:
           multiline: false
           type: text
       default: ""
-    separate_topics:
-      name: Separate Topics
-      description: |
-        If true, each guest will have their own Zulip topic. If false, all
-        guests will be in the same topic.
-      selector:
-        boolean:
-      default: false
 
 mode: single
 
@@ -100,12 +92,12 @@ trigger:
 variables:
   input_notify_service: !input notify_service
   input_lock: !input lock
-  input_separate_topics: !input separate_topics
   input_slot_min: !input slot_min
   input_slot_max: !input slot_max
+  input_topic: !input topic
   # yamllint disable-line rule:line-length
   notify_target: "{{ input_notify_service | lower | replace('notify.', '') | replace(' ', '_') }}"
-  input_topic: !input topic
+  separate_topics: "{{ input_topic != '' }}"
 
 action:
   - choose:
@@ -133,7 +125,7 @@ action:
                   - service: notify.{{ notify_target }}
                     data:
                       # yamllint disable-line rule:line-length
-                      title: "Guest {% if input_separate_topics %}{{ slot_name }}{% else %}{{ input_topic }}{%- endif -%}"
+                      title: "{%- if separate_topics -%}Guest {{ slot_name }}{%- else -%}{{ input_topic }}{%- endif -%}"
                       message: "Guest has checked-in"
       - alias: Guest checkout
         conditions:
