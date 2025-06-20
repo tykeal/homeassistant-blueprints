@@ -44,7 +44,7 @@ blueprint:
       selector:
         number:
           min: 1
-          max: 30
+          max: 250
       default: 6
     slot_max:
       name: Max slot number
