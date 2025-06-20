@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.5)
+  name: Guest Entry Notifier (v0.5.1)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
