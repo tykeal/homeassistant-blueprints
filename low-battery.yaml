@@ -44,15 +44,7 @@ blueprint:
           mode: list
           multiple: true
           sort: false
-          custom_value: true
-          default:
-            - Monday
-            - Tuesday
-            - Wednesday
-            - Thursday
-            - Friday
-            - Saturday
-            - Sunday
+          custom_value: false
     exclude:
       name: Excluded Sensors
       description: Battery sensors (e.g. smartphone) to exclude from detection.
