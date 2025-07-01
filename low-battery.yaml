@@ -87,7 +87,8 @@ trigger:
   - platform: time
     at: !input "time"
 condition:
-  - "{{ sensors != '' and now().strftime('%A') in days }}"
+  - condition: template
+    value_template: "{{ sensors != '' and now().strftime('%A') in days }}"
 action:
   - choose: []
     default: !input "actions"
