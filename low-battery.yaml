@@ -65,7 +65,7 @@ blueprint:
   # yamllint disable-line rule:line-length
   source_url: https://raw.githubusercontent.com/tykeal/homeassistant-blueprints/main/low-battery.yaml
 variables:
-  day: !input "day"
+  days: !input "days"
   threshold: !input "threshold"
   exclude: !input "exclude"
   # yamllint disable rule:line-length
