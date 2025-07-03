@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.5.1)
+  name: Guest Entry Notifier (v0.5.2)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -125,7 +125,7 @@ action:
                   - service: notify.{{ notify_target }}
                     data:
                       # yamllint disable-line rule:line-length
-                      title: "{%- if separate_topics -%}Guest {{ slot_name }}{%- else -%}{{ input_topic }}{%- endif -%}"
+                      title: "{%- if separate_topics -%}{{ input_topic }}{%- else -%}Guest {{ slot_name }}{%- endif -%}"
                       message: "Guest has checked-in"
       - alias: Guest checkout
         conditions:
