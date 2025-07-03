@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.5.2)
+  name: Guest Entry Notifier (v0.5.3)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -66,6 +66,8 @@ blueprint:
           type: text
       default: ""
 
+    # yamllint disable-line rule:line-length
+  source_url: https://raw.githubusercontent.com/tykeal/homeassistant-blueprints/main/guest-entry-notifier.yaml
 mode: single
 
 trigger:
