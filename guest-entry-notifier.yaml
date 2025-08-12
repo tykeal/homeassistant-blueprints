@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.6.1)
+  name: Guest Entry Notifier (v0.7.0)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -83,7 +83,7 @@ trigger:
         {%- else -%}
           {{ trigger.event.data.code_slot_name }}
         {%- endif -%}
-      slot_num: "{{ trigger.event.data.code_slot }}"
+      slot_num: "{{ trigger.event.data.code_slot_num }}"
       lock: "{{ trigger.event.data.entity_id }}"
   - platform: calendar
     event: end
