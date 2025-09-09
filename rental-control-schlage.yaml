@@ -1,0 +1,238 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2025 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: Rental Control for Schlage Locks (v0.1)
+  description: |
+    Handles programming and deprogramming Schlage locks using the Rental
+    Control Calendar and sensors.
+
+  domain: automation
+
+  input:
+    lock:
+      name: Lock
+      description: Door lock
+      selector:
+        entity:
+          domain: lock
+          integration: schlage
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: The calendar associated with the rental control device
+      selector:
+        entity:
+          domain: calendar
+          integration: rental_control
+    prefix:
+      name: Slot Name Prefix
+      description: |
+        Prefix for the slot names. The slot names will be of the form
+        `PREFIX <slot_name>`
+      default: ""
+      selector:
+        text:
+          multiline: false
+    pre_trip_offset:
+      name: Pre-trip Offset
+      description: |
+        The pre-trip offset before the booking to program the lock code. Make
+        sure to use negative values to trigger it before the event starts.
+      default:
+        hours: 0
+        minutes: -15
+        seconds: 0
+      selector:
+        duration:
+    post_trip_offset:
+      name: Post-trip Offset
+      description: |
+        The post-trip offset after the booking to deprogram the lock code.
+      default:
+        hours: 0
+        minutes: 15
+        seconds: 0
+      selector:
+        duration:
+    additional_actions:
+      name: Additional Actions
+      description: |
+        Additional actions to perform after programming or deprogramming the
+        lock.
+        The following variables are available for use in the actions:
+        - trigger_id: The ID of the trigger that fired the automation
+        - lock: The entity ID of the lock
+        - rc: The entity ID of the rental control calendar
+        - event0: The entity ID of the rental control event 0 sensor
+        - event1: The entity ID of the rental control event 1 sensor
+        - codes: The JSON object containing the lock codes (if codes were added
+        or removed this will be out of date)
+        - pre_trip_offset: The pre-trip offset duration object
+        - post_trip_offset: The post-trip offset duration object
+      default: []
+      selector:
+        action:
+
+mode: single
+
+variables:
+  # Inputs
+  lock: !input lock
+  rc: !input rental_control_calendar
+  prefix: !input prefix
+  pre_trip_offset: !input pre_trip_offset
+  post_trip_offset: !input post_trip_offset
+
+  # Derived
+  rc_device: "{{ device_name(rc) | lower }}"
+  event0: "sensor.rental_control_{{ rc_device }}_event_0"
+  event1: "sensor.rental_control_{{ rc_device }}_event_1"
+  pre_trip_offset_as_string: >-
+    {%- set negative = false -%}
+    {%- if pre_trip_offset.hours < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if pre_trip_offset.minutes < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if pre_trip_offset.seconds < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if negative -%}
+    -{%- endif -%}{{ (pre_trip_offset.hours | abs) }}:{{
+    (pre_trip_offset.minutes | abs) }}:{{ (pre_trip_offset.seconds | abs) }}
+  post_trip_offset_as_string: >-
+    {%- set negative = false -%}
+    {%- if post_trip_offset.hours < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if post_trip_offset.minutes < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if post_trip_offset.seconds < 0 -%}
+      {%- set negative = true -%}
+    {%- endif -%}
+    {%- if negative -%}
+    -{%- endif -%}{{ (post_trip_offset.hours | abs) }}:{{
+    (post_trip_offset.minutes | abs) }}:{{ (post_trip_offset.seconds | abs) }}
+
+triggers:
+  # failsafe trigger in case calendar event triggers are missed (e.g. Home
+  # Assistant was offline at the time or event created less that 15 minutes
+  # from start)
+  - trigger: state
+    entity_id: !input rental_control_calendar
+    to: "on"
+    id: trip_start
+  - trigger: calendar
+    entity_id: !input rental_control_calendar
+    event: start
+    offset: !input pre_trip_offset
+    id: pre_trip
+  - trigger: calendar
+    entity_id: !input rental_control_calendar
+    event: end
+    offset: !input post_trip_offset
+    id: post_trip
+
+conditions: []
+
+actions:
+  - action: schlage.get_codes
+    metadata: {}
+    data:
+      entity_id: "{{ lock }}"
+    response_variable: codes
+  - choose:
+      - conditions:
+          - condition: trigger
+            id:
+              - pre_trip
+              - trip_start
+        sequence:
+          - variables:
+              which_event: >-
+                {%- if state_attr(event0, 'slot_code') and
+                state_attr(event0, 'start')
+                | as_datetime + pre_trip_offset_as_string
+                | as_timedelta <= now() <= state_attr(event0, 'end')
+                | as_datetime -%}
+                  event0
+                {%- elif state_attr(event1, 'slot_code') and
+                state_attr(event1, 'start')
+                | as_datetime + pre_trip_offset_as_string
+                | as_timedelta <= now() <= state_attr(event1, 'end')
+                | as_datetime -%}
+                  event1
+                {%- else -%}
+                  none
+                {%- endif -%}
+              pin: >-
+                {%- if which_event == 'none' -%}
+                  ''
+                {%- elif which_event == 'event0' -%}
+                  {{ state_attr(event0, 'slot_code') }}
+                {%- elif which_event == 'event1' -%}
+                  {{ state_attr(event1, 'slot_code') }}
+                {%- endif -%}
+              slot_name: >-
+                {%- if which_event == 'none' -%}
+                  ''
+                {%- elif which_event == 'event0' -%}
+                  {%- if prefix != '' %}{{ prefix }} {% endif %}{{
+                  state_attr(event0, 'slot_name') }}
+                {%- elif which_event == 'event1' -%}
+                  {%- if prefix != '' %}{{ prefix }} {% endif %}{{
+                  state_attr(event1, 'slot_name') }}
+                {%- endif -%}
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ which_event != 'none' }}"
+                sequence:
+                  - action: schlage.add_code
+                    metadata: {}
+                    data: >-
+                      {{ dict(
+                        entity_id=lock,
+                        code=pin | string,
+                        name=slot_name
+                      ) }}
+              - conditions:
+                  - condition: template
+                    value_template: "{{ which_event == 'none' }}"
+                sequence:
+                  - action: notify.persistent_notification
+                    metadata: {}
+                    data:
+                      title: "Rental Control Schlage Automation"
+                      # yamllint disable rule:line-length
+                      message: >-
+                        "No valid event found for programming lock {{ lock }}
+                        ({{ state_attr(lock, 'friendly_name') }}) from
+                        calendar {{ rc }} ({{ state_attr(rc,
+                        'friendly_name') }})."
+                      # yamllint enable rule:line-length
+      - conditions:
+          - condition: trigger
+            id:
+              - post_trip
+              - trip_end
+        sequence:
+          - variables:
+              del_codes: >-
+                {{ codes[lock].items()
+                | selectattr('1.name', 'search', prefix)
+                | map(attribute='1.name')
+                | list }}
+          - repeat:
+              for_each: "{{ del_codes }}"
+              sequence:
+                - action: schlage.delete_code
+                  metadata: {}
+                  data:
+                    entity_id: "{{ lock }}"
+                    name: "{{ repeat.item }}"
+  - alias: "Run defined additional actions"
+    choose: []
+    default: !input additional_actions
