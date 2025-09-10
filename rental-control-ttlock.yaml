@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2025 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Rental Control for TTLock Locks (v0.1)
+  name: Rental Control for TTLock Locks (v0.2)
   description: |
     Handles programming and deprogramming TTLock locks using the Rental
     Control Calendar and sensors.
@@ -152,14 +152,13 @@ conditions: []
 actions:
   # Verify that the lock is available
   - if:
-      - condition: or
-        conditions:
-          - condition: state
-            entity_id: "{{ lock }}"
-            state: "unavailable"
-          - condition: state
-            entity_id: "{{ lock }}"
-            state: "unknown"
+      - condition: template
+        value_template: >-
+          {%- if states(lock) in ["unavailable", "unknown"] -%}
+            true
+          {%- else -%}
+            false
+          {%- endif -%}
     then:
       - alias: "Run unavailable actions"
         choose: []
