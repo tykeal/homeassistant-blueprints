@@ -22,8 +22,8 @@ repos:
         args:
           - --branch=main
 
-  - repo: https://github.com/psf/black
-    rev: 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b  # frozen: 25.1.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 2892f1f81088477370d4fbc56545c05d33d2493f  # frozen: 25.11.0
     hooks:
       - id: black
 
@@ -33,7 +33,7 @@ repos:
       - id: flake8
 
   - repo: https://github.com/asottile/reorder-python-imports
-    rev: 48a80feb65ccf330db459a7bcae448e05e6c1a13  # frozen: v3.15.0
+    rev: 7885866bd38c852b5e042c4aeef0285d715ffeee  # frozen: v3.16.0
     hooks:
       - id: reorder-python-imports
 
