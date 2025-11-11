@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2025 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Guest Announcer (v0.1)
+  name: Guest Code Announcer (v0.2)
 
   description: |
     Announces door codes to a Zulip stream for property managers when a new
@@ -91,14 +91,14 @@ variables:
   event_0: |
     {%- if 'No reservation' not in states(input_event_0) -%}
       * {{ as_timestamp(state_attr(input_event_0, 'start')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }} - {{ as_timestamp(state_attr(input_event_0, 'end')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }}
-        Code: {{ state_attr(input_event_0, 'slot_code') }}
+    Code: {{ state_attr(input_event_0, 'slot_code') }}, Reservation ID: {{ state_attr(input_event_0, 'slot_name') }}
     {%- else -%}
       * No reservations scheduled
     {%- endif -%}
   event_1: |
     {%- if 'No reservation' not in states(input_event_1) -%}
       * {{ as_timestamp(state_attr(input_event_1, 'start')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }} - {{ as_timestamp(state_attr(input_event_1, 'end')) | timestamp_custom("%d %B, %Y (%Y-%m-%d) %H:%M") }}
-        Code: {{ state_attr(input_event_1, 'slot_code') }}
+    Code: {{ state_attr(input_event_1, 'slot_code') }}, Reservation ID: {{ state_attr(input_event_1, 'slot_name') }}
     {%- endif -%}
   # yamllint enable rule:line-length
   notify_message: |
