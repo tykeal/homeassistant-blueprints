@@ -15,27 +15,11 @@ repos:
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
     hooks:
       - id: check-added-large-files
-      # - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: no-commit-to-branch
         args:
           - --branch=main
-
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 2892f1f81088477370d4fbc56545c05d33d2493f  # frozen: 25.11.0
-    hooks:
-      - id: black
-
-  - repo: https://github.com/pycqa/flake8
-    rev: d93590f5be797aabb60e3b09f2f52dddb02f349f  # frozen: 7.3.0
-    hooks:
-      - id: flake8
-
-  - repo: https://github.com/asottile/reorder-python-imports
-    rev: 7885866bd38c852b5e042c4aeef0285d715ffeee  # frozen: v3.16.0
-    hooks:
-      - id: reorder-python-imports
 
   - repo: https://github.com/jorisroovers/gitlint
     rev: acc9d9de6369b76d22cb4167029d2035e8730b98 # frozen: v0.19.1
@@ -47,8 +31,13 @@ repos:
     hooks:
       - id: yamllint
 
-  - repo: https://github.com/econchick/interrogate
-    rev: a6268877efd41a21197445cc04cbf28f9c6facba # frozen: 1.7.0
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: 192ad822316c3a22fb3d3cc8aa6eafa0b8488360  # frozen: v0.45.0
     hooks:
-      - id: interrogate
-        args: [-vv, --fail-under=100]
+      - id: markdownlint
+        args: ["--fix"]
+
+  - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
+    rev: a185be0fd5b45112845b700d91b81050c75579e2 # frozen: v1.7.7.23
+    hooks:
+      - id: actionlint
