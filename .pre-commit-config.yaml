@@ -38,6 +38,6 @@ repos:
         args: ["--fix"]
 
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
-    rev: a185be0fd5b45112845b700d91b81050c75579e2 # frozen: v1.7.7.23
+    rev: 2773c7d04be5d0ceb075f215b6d0a4eacd4a432b  # frozen: v1.7.8.24
     hooks:
       - id: actionlint
