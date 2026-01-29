@@ -1,7 +1,7 @@
 ---
 # SPDX-License-Identifier: MIT
 blueprint:
-  name: Guest Entry Notifier (v0.7.0)
+  name: Guest Entry Notifier (v0.8.0)
 
   description: |
     Basic thread starter for use with Rental Control and Zulip
@@ -75,6 +75,7 @@ trigger:
     event_type: keymaster_lock_state_changed
     event_data:
       state: unlocked
+      entity_id: !input lock
     id: unlock
     variables:
       slot_name: |-
