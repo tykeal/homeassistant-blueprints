@@ -1,0 +1,129 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: Rental Control Guesty Slot Code Sync (v0.1)
+  description: |
+    Syncs Rental Control slot codes to Guesty reservation custom
+    fields. When Rental Control generates a slot_code for a guest
+    reservation, this automation pushes that code into a Guesty
+    reservation custom field so property managers can see the door
+    code in Guesty's UI.
+
+  domain: automation
+
+  input:
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: >-
+        The calendar associated with the rental control device
+      selector:
+        entity:
+          domain: calendar
+          integration: rental_control
+    guesty_reservation:
+      name: Guesty Reservation Sensor
+      description: |
+        A Guesty sensor entity for the target listing. This can
+        be any Guesty sensor for the listing (e.g., the
+        reservation status sensor). Used to derive the
+        config_entry_id for multi-Guesty account setups.
+      selector:
+        entity:
+          domain: sensor
+          integration: guesty
+    custom_field_id:
+      name: Guesty Custom Field ID
+      description: |
+        The Guesty custom field ID to populate with the slot
+        code. Use the guesty.get_custom_fields service to find
+        available field IDs.
+      selector:
+        text:
+          multiline: false
+    max_events:
+      name: Max Events
+      description: |
+        Number of Rental Control event sensors to check. This
+        should match the max_events setting in the Rental Control
+        configuration.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    check_interval:
+      name: Check Interval (Hours)
+      description: |
+        How often to run the periodic sync, in time_pattern
+        format. Use "/1" for every hour, "/2" for every 2 hours,
+        etc.
+      default: "/1"
+      selector:
+        text:
+          multiline: false
+
+mode: single
+
+variables:
+  rc: !input rental_control_calendar
+  guesty_entity: !input guesty_reservation
+  custom_field_id: !input custom_field_id
+  max_events: !input max_events
+
+  # Derived
+  rc_device: "{{ device_name(rc) | lower }}"
+  guesty_config_entry: >-
+    {{ config_entry_id(guesty_entity) }}
+
+triggers:
+  - trigger: state
+    entity_id: !input rental_control_calendar
+    id: calendar_update
+  - trigger: time_pattern
+    hours: !input check_interval
+    id: periodic_sync
+
+conditions: []
+
+actions:
+  - repeat:
+      count: "{{ max_events | int }}"
+      sequence:
+        - variables:
+            event_index: "{{ repeat.index - 1 }}"
+            event_entity: >-
+              sensor.rental_control_{{ rc_device
+              }}_event_{{ event_index }}
+        - if:
+            - condition: template
+              value_template: >-
+                {{ has_value(event_entity)
+                and state_attr(event_entity, 'slot_code')
+                not in [None, '']
+                and state_attr(event_entity, 'booking_id')
+                not in [None, ''] }}
+          then:
+            - variables:
+                slot_code: >-
+                  {{ state_attr(event_entity,
+                  'slot_code') }}
+                booking_id_raw: >-
+                  {{ state_attr(event_entity,
+                  'booking_id') }}
+                reservation_id: >-
+                  {%- if '::' in booking_id_raw -%}
+                  {{ booking_id_raw.split('::')[0] }}
+                  {%- else -%}
+                  {{ booking_id_raw }}
+                  {%- endif -%}
+            - action: guesty.set_custom_field
+              metadata: {}
+              data:
+                target_type: reservation
+                target_id: "{{ reservation_id }}"
+                field_id: "{{ custom_field_id }}"
+                value: "{{ slot_code }}"
+                config_entry_id: >-
+                  {{ guesty_config_entry }}
