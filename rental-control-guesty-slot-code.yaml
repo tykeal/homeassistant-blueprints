@@ -55,14 +55,28 @@ blueprint:
           mode: box
     check_interval:
       name: Check Interval (Hours)
-      description: |
-        How often to run the periodic sync, in time_pattern
-        format. Use "/1" for every hour, "/2" for every 2 hours,
-        etc.
+      description: >-
+        How often to run the periodic sync.
       default: "/1"
       selector:
-        text:
-          multiline: false
+        select:
+          options:
+            - label: Every hour
+              value: "/1"
+            - label: Every 2 hours
+              value: "/2"
+            - label: Every 3 hours
+              value: "/3"
+            - label: Every 4 hours
+              value: "/4"
+            - label: Every 6 hours
+              value: "/6"
+            - label: Every 8 hours
+              value: "/8"
+            - label: Every 12 hours
+              value: "/12"
+            - label: Once daily
+              value: "/24"
 
 mode: single
 
@@ -73,7 +87,7 @@ variables:
   max_events: !input max_events
 
   # Derived
-  rc_device: "{{ device_name(rc) | lower }}"
+  rc_device: "{{ device_name(rc) | slugify }}"
   guesty_config_entry: >-
     {{ config_entry_id(guesty_entity) }}
 
