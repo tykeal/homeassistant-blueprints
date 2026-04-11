@@ -84,8 +84,18 @@ triggers:
   - trigger: time_pattern
     hours: !input check_interval
     id: periodic_sync
+  - trigger: event
+    event_type: state_changed
+    id: event_sensor_update
 
-conditions: []
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.id != 'event_sensor_update'
+      or trigger.event.data.entity_id in
+      ['sensor.rental_control_' ~ rc_device
+      ~ '_event_' ~ i
+      for i in range(max_events | int)] }}
 
 actions:
   - repeat:
