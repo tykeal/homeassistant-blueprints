@@ -21,6 +21,16 @@ blueprint:
         entity:
           domain: calendar
           integration: rental_control
+    guesty_listing:
+      name: Guesty Listing
+      description: >-
+        The Guesty listing sensor that corresponds to this
+        rental control calendar. Used to associate this
+        automation with the correct Guesty listing.
+      selector:
+        entity:
+          domain: sensor
+          integration: guesty
     custom_field_id:
       name: Guesty Custom Field ID
       description: |
