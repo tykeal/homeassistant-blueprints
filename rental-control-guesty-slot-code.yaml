@@ -21,6 +21,16 @@ blueprint:
         entity:
           domain: calendar
           integration: rental_control
+    guesty_reservation:
+      name: Guesty Reservation (Deprecated)
+      description: |
+        Deprecated and unused. This input is retained only for
+        backward compatibility with existing automations created
+        from earlier versions of this blueprint.
+      default: ""
+      selector:
+        text:
+          multiline: false
     custom_field_id:
       name: Guesty Custom Field ID
       description: |
