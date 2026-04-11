@@ -21,17 +21,6 @@ blueprint:
         entity:
           domain: calendar
           integration: rental_control
-    guesty_reservation:
-      name: Guesty Reservation Sensor
-      description: |
-        A Guesty sensor entity for the target listing. This can
-        be any Guesty sensor for the listing (e.g., the
-        reservation status sensor). Used to derive the
-        config_entry_id for multi-Guesty account setups.
-      selector:
-        entity:
-          domain: sensor
-          integration: guesty
     custom_field_id:
       name: Guesty Custom Field ID
       description: |
@@ -82,14 +71,11 @@ mode: single
 
 variables:
   rc: !input rental_control_calendar
-  guesty_entity: !input guesty_reservation
   custom_field_id: !input custom_field_id
   max_events: !input max_events
 
   # Derived
   rc_device: "{{ device_name(rc) | slugify }}"
-  guesty_config_entry: >-
-    {{ config_entry_id(guesty_entity) }}
 
 triggers:
   - trigger: state
@@ -139,5 +125,3 @@ actions:
                 target_id: "{{ reservation_id }}"
                 field_id: "{{ custom_field_id }}"
                 value: "{{ slot_code }}"
-                config_entry_id: >-
-                  {{ guesty_config_entry }}
