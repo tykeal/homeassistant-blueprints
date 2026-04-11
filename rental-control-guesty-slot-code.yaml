@@ -128,7 +128,7 @@ actions:
             - variables:
                 slot_code: >-
                   {{ state_attr(event_entity,
-                  'slot_code') }}
+                  'slot_code') | string }}
                 booking_id_raw: >-
                   {{ state_attr(event_entity,
                   'booking_id') }}
@@ -144,4 +144,4 @@ actions:
                 target_type: reservation
                 target_id: "{{ reservation_id }}"
                 field_id: "{{ custom_field_id }}"
-                value: "{{ slot_code }}"
+                value: "{{ slot_code | string }}"
