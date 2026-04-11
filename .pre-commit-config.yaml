@@ -32,12 +32,12 @@ repos:
       - id: yamllint
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: 76b3d32d3f4b965e1d6425253c59407420ae2c43  # frozen: v0.47.0
+    rev: e72a3ca1632f0b11a07d171449fe447a7ff6795e  # frozen: v0.48.0
     hooks:
       - id: markdownlint
         args: ["--fix"]
 
   - repo: https://github.com/Mateusz-Grzelinski/actionlint-py
-    rev: 85c37735ea69e5baf0681530e57e63deee0ce733  # frozen: v1.7.10.24
+    rev: c04ed26e40637cab1aa9879c693832a9c120fb20  # frozen: v1.7.12.24
     hooks:
       - id: actionlint
