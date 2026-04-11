@@ -76,6 +76,10 @@ variables:
 
   # Derived
   rc_device: "{{ device_name(rc) | slugify }}"
+  rc_event_entities: >-
+    {{ ['sensor.rental_control_' ~ rc_device
+    ~ '_event_' ~ i
+    for i in range(max_events | int)] }}
 
 triggers:
   - trigger: state
@@ -84,8 +88,20 @@ triggers:
   - trigger: time_pattern
     hours: !input check_interval
     id: periodic_sync
+  # state_changed fires for every entity; the condition below
+  # filters to our event sensors. HA state triggers do not
+  # support templated entity_id, so this is the recommended
+  # workaround for dynamically derived entity lists.
+  - trigger: event
+    event_type: state_changed
+    id: event_sensor_update
 
-conditions: []
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.id != 'event_sensor_update'
+      or trigger.event.data.entity_id
+      in rc_event_entities }}
 
 actions:
   - repeat:
