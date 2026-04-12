@@ -140,8 +140,10 @@ actions:
                   {%- endif -%}
             - action: guesty.set_custom_field
               metadata: {}
-              data:
-                target_type: reservation
-                target_id: "{{ reservation_id }}"
-                field_id: "{{ custom_field_id }}"
-                value: "{{ slot_code | string }}"
+              data: >-
+                {{ dict(
+                  target_type='reservation',
+                  target_id=reservation_id | string,
+                  field_id=custom_field_id,
+                  value=slot_code | string
+                ) }}
