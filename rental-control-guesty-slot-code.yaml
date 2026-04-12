@@ -139,6 +139,7 @@ actions:
                   {{ booking_id_raw }}
                   {%- endif -%}
             - action: guesty.get_custom_field_values
+              metadata: {}
               data: >-
                 {{ dict(
                   target_type='reservation',
@@ -150,7 +151,7 @@ actions:
                   {%- set current_value =
                   current_fields.fields
                   | selectattr('field_id', 'equalto',
-                  custom_field_id)
+                  custom_field_id | string)
                   | map(attribute='value')
                   | first
                   | default(None) -%}
