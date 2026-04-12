@@ -138,12 +138,35 @@ actions:
                   {%- else -%}
                   {{ booking_id_raw }}
                   {%- endif -%}
-            - action: guesty.set_custom_field
-              metadata: {}
+            - action: guesty.get_custom_field_values
               data: >-
                 {{ dict(
                   target_type='reservation',
-                  target_id=reservation_id | string,
-                  field_id=custom_field_id,
-                  value=slot_code | string
+                  target_id=reservation_id | string
                 ) }}
+              response_variable: current_fields
+            - variables:
+                current_value: >-
+                  {%- set current_value =
+                  current_fields.fields
+                  | selectattr('field_id', 'equalto',
+                  custom_field_id)
+                  | map(attribute='value')
+                  | first
+                  | default(None) -%}
+                  {{ current_value }}
+            - if:
+                - condition: template
+                  value_template: >-
+                    {{ current_value | string
+                    != slot_code | string }}
+              then:
+                - action: guesty.set_custom_field
+                  metadata: {}
+                  data: >-
+                    {{ dict(
+                      target_type='reservation',
+                      target_id=reservation_id | string,
+                      field_id=custom_field_id,
+                      value=slot_code | string
+                    ) }}
