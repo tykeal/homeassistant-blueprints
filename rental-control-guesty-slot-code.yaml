@@ -81,7 +81,9 @@ variables:
     {%- for i in range(max_events | int) -%}
       {%- set ns.entities = ns.entities +
       ['sensor.rental_control_' ~ rc_device
-      ~ '_event_' ~ i] -%}
+      ~ '_event_' ~ i,
+      'sensor.' ~ rc_device
+      ~ '_rental_control_event_' ~ i] -%}
     {%- endfor -%}
     {{ ns.entities }}
 
@@ -113,9 +115,18 @@ actions:
       sequence:
         - variables:
             event_index: "{{ repeat.index - 1 }}"
-            event_entity: >-
+            event_entity_old: >-
               sensor.rental_control_{{ rc_device
               }}_event_{{ event_index }}
+            event_entity_new: >-
+              sensor.{{ rc_device
+              }}_rental_control_event_{{ event_index }}
+            event_entity: >-
+              {% if has_value(event_entity_new) %}
+              {{ event_entity_new }}
+              {% else %}
+              {{ event_entity_old }}
+              {% endif %}
         - if:
             - condition: template
               value_template: >-
