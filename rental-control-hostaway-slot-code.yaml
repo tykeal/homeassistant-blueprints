@@ -92,7 +92,12 @@ variables:
       ~ '_event_' ~ i] -%}
     {%- endfor -%}
     {{ ns.entities }}
-  listing_id: "{{ states(listing_id_entity) | int }}"
+  listing_id: >-
+    {{ states(listing_id_entity) | int(0) }}
+  listing_id_valid: >-
+    {{ has_value(listing_id_entity)
+    and states(listing_id_entity)
+    | int(0) > 0 }}
 
 triggers:
   - trigger: state
@@ -117,6 +122,8 @@ conditions:
       in rc_event_entities }}
 
 actions:
+  - condition: template
+    value_template: "{{ listing_id_valid }}"
   - repeat:
       count: "{{ max_events | int }}"
       sequence:
@@ -132,6 +139,10 @@ actions:
                 and state_attr(event_entity, 'slot_code')
                 not in [None, '']
                 and state_attr(event_entity, 'slot_name')
+                not in [None, '']
+                and state_attr(event_entity, 'start')
+                not in [None, '']
+                and state_attr(event_entity, 'end')
                 not in [None, ''] }}
           then:
             - variables:
