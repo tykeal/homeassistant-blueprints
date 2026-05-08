@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Rental Control Guesty Slot Code Sync (v0.1)
+  name: Rental Control Guesty Slot Code Sync (v0.2)
   description: |
     Syncs Rental Control slot codes to Guesty reservation custom
     fields. When Rental Control generates a slot_code for a guest
