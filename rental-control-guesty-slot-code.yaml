@@ -122,11 +122,9 @@ actions:
               sensor.{{ rc_device
               }}_rental_control_event_{{ event_index }}
             event_entity: >-
-              {% if has_value(event_entity_new) %}
-              {{ event_entity_new }}
-              {% else %}
-              {{ event_entity_old }}
-              {% endif %}
+              {{ event_entity_new
+              if has_value(event_entity_new)
+              else event_entity_old }}
         - if:
             - condition: template
               value_template: >-
