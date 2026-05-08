@@ -1,0 +1,196 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: Rental Control Hostaway Slot Code Sync (v0.1)
+  description: |
+    Syncs Rental Control slot codes to Hostaway reservations. When
+    Rental Control generates a slot_code for a guest, this automation
+    pushes that code into the Hostaway reservation's door code field.
+
+  domain: automation
+
+  input:
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: >-
+        The calendar associated with the rental control device
+      selector:
+        entity:
+          domain: calendar
+          integration: rental_control
+    hostaway_listing_id:
+      name: Hostaway Listing ID
+      description: >-
+        The Hostaway listing ID sensor for the property. This is
+        used to scope reservation lookups.
+      selector:
+        entity:
+          domain: sensor
+          integration: hostaway
+    max_events:
+      name: Max Events
+      description: |
+        Number of Rental Control event sensors to check. This
+        should match the max_events setting in the Rental Control
+        configuration.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    check_interval:
+      name: Check Interval (Hours)
+      description: >-
+        How often to run the periodic sync.
+      default: "/1"
+      selector:
+        select:
+          options:
+            - label: Every hour
+              value: "/1"
+            - label: Every 2 hours
+              value: "/2"
+            - label: Every 3 hours
+              value: "/3"
+            - label: Every 4 hours
+              value: "/4"
+            - label: Every 6 hours
+              value: "/6"
+            - label: Every 8 hours
+              value: "/8"
+            - label: Every 12 hours
+              value: "/12"
+            - label: Once daily
+              value: "/24"
+    door_code_vendor:
+      name: Door Code Vendor
+      description: >-
+        The vendor string to associate with the door code
+        in Hostaway.
+      default: "Home Assistant"
+      selector:
+        text:
+          multiline: false
+
+mode: single
+
+variables:
+  rc: !input rental_control_calendar
+  max_events: !input max_events
+  listing_id_entity: !input hostaway_listing_id
+  door_code_vendor: !input door_code_vendor
+
+  # Derived
+  rc_device: "{{ device_name(rc) | slugify }}"
+  rc_event_entities: >-
+    {%- set ns = namespace(entities=[]) -%}
+    {%- for i in range(max_events | int) -%}
+      {%- set ns.entities = ns.entities +
+      ['sensor.rental_control_' ~ rc_device
+      ~ '_event_' ~ i] -%}
+    {%- endfor -%}
+    {{ ns.entities }}
+  listing_id: "{{ states(listing_id_entity) | int }}"
+
+triggers:
+  - trigger: state
+    entity_id: !input rental_control_calendar
+    id: calendar_update
+  - trigger: time_pattern
+    hours: !input check_interval
+    id: periodic_sync
+  # state_changed fires for every entity; the condition below
+  # filters to our event sensors. HA state triggers do not
+  # support templated entity_id, so this is the recommended
+  # workaround for dynamically derived entity lists.
+  - trigger: event
+    event_type: state_changed
+    id: event_sensor_update
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.id != 'event_sensor_update'
+      or trigger.event.data.entity_id
+      in rc_event_entities }}
+
+actions:
+  - repeat:
+      count: "{{ max_events | int }}"
+      sequence:
+        - variables:
+            event_index: "{{ repeat.index - 1 }}"
+            event_entity: >-
+              sensor.rental_control_{{ rc_device
+              }}_event_{{ event_index }}
+        - if:
+            - condition: template
+              value_template: >-
+                {{ has_value(event_entity)
+                and state_attr(event_entity, 'slot_code')
+                not in [None, '']
+                and state_attr(event_entity, 'slot_name')
+                not in [None, ''] }}
+          then:
+            - variables:
+                slot_code: >-
+                  {{ state_attr(event_entity,
+                  'slot_code') | string }}
+                slot_name_raw: >-
+                  {{ state_attr(event_entity,
+                  'slot_name') }}
+                guest_name: >-
+                  {{ slot_name_raw.split('(')[0]
+                  | trim }}
+                check_in: >-
+                  {{ as_datetime(
+                  state_attr(event_entity, 'start')
+                  ).strftime('%Y-%m-%d') }}
+                check_out: >-
+                  {{ as_datetime(
+                  state_attr(event_entity, 'end')
+                  ).strftime('%Y-%m-%d') }}
+            - action: hostaway.find_reservation
+              metadata: {}
+              data: >-
+                {{ dict(
+                  guest_name=guest_name | string,
+                  check_in=check_in | string,
+                  check_out=check_out | string,
+                  listing_id=listing_id | int
+                ) }}
+              response_variable: reservation_result
+            - if:
+                - condition: template
+                  value_template: >-
+                    {{ reservation_result.found
+                    == true }}
+              then:
+                - variables:
+                    current_door_code: >-
+                      {{ reservation_result
+                      .reservation.door_code
+                      | default('', true)
+                      | string }}
+                - if:
+                    - condition: template
+                      value_template: >-
+                        {{ current_door_code
+                        | string
+                        != slot_code | string }}
+                  then:
+                    - action: hostaway.set_door_code
+                      metadata: {}
+                      data: >-
+                        {{ dict(
+                          reservation_id=
+                          reservation_result
+                          .reservation.id | int,
+                          door_code=
+                          slot_code | string,
+                          door_code_vendor=
+                          door_code_vendor
+                          | string
+                        ) }}
