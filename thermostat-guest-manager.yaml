@@ -65,7 +65,7 @@ blueprint:
       description: >-
         Target temperature for single-setpoint modes (heat or
         cool).
-      default: 72
+      default: 22
       selector:
         number:
           min: 10
