@@ -68,31 +68,31 @@ blueprint:
       default: 72
       selector:
         number:
-          min: 55
-          max: 85
-          unit_of_measurement: "°F"
+          min: 10
+          max: 35
+          unit_of_measurement: "°C"
           mode: box
     target_temp_high:
       name: Target Temperature High
       description: >-
         High/cool setpoint for range modes (heat_cool or auto).
-      default: 76
+      default: 24
       selector:
         number:
-          min: 60
-          max: 85
-          unit_of_measurement: "°F"
+          min: 15
+          max: 35
+          unit_of_measurement: "°C"
           mode: box
     target_temp_low:
       name: Target Temperature Low
       description: >-
         Low/heat setpoint for range modes (heat_cool or auto).
-      default: 68
+      default: 20
       selector:
         number:
-          min: 55
-          max: 80
-          unit_of_measurement: "°F"
+          min: 10
+          max: 30
+          unit_of_measurement: "°C"
           mode: box
     eta_threshold:
       name: ETA Threshold
@@ -196,13 +196,15 @@ conditions:
 actions:
   - variables:
       now_ts: "{{ now() }}"
-      today_date: "{{ now().strftime('%Y-%m-%d') }}"
+      today_date: >-
+        {{ as_local(now()).strftime('%Y-%m-%d') }}
       state_info: >-
         {%- set ns = namespace(
           has_active=false,
           pre_arrival=false,
           same_day_changeover=false,
-          arrival_today=false
+          arrival_today=false,
+          last_departure=none
         ) -%}
         {%- for i in range(max_events | int) -%}
           {%- set old_entity =
@@ -223,22 +225,29 @@ actions:
                 state_attr(entity, 'end') -%}
             {%- if start is not none
                 and end_dt is not none -%}
+              {%- set s_local =
+                  as_local(as_datetime(start)) -%}
+              {%- set e_local =
+                  as_local(as_datetime(end_dt)) -%}
               {%- set start_date =
-                  as_datetime(start)
+                  s_local
                   .strftime('%Y-%m-%d') -%}
-              {%- set end_date =
-                  as_datetime(end_dt)
-                  .strftime('%Y-%m-%d') -%}
-              {%- if as_datetime(start) <= now_ts
-                  and now_ts
-                  < as_datetime(end_dt) -%}
+              {%- if s_local <= now_ts
+                  and now_ts < e_local -%}
                 {%- set ns.has_active = true -%}
               {%- endif -%}
+              {# Track most recent past departure #}
+              {%- if e_local <= now_ts -%}
+                {%- if ns.last_departure is none
+                    or e_local
+                    > ns.last_departure -%}
+                  {%- set ns.last_departure
+                      = e_local -%}
+                {%- endif -%}
+              {%- endif -%}
               {# Track any event starting today #}
-              {%- if start_date
-                  == today_date
-                  and now_ts
-                  < as_datetime(end_dt) -%}
+              {%- if start_date == today_date
+                  and now_ts < e_local -%}
                 {%- set ns.arrival_today = true -%}
               {%- endif -%}
               {%- if eta is not none
@@ -256,13 +265,21 @@ actions:
             {%- endif -%}
           {%- endif -%}
         {%- endfor -%}
+        {%- set dep_minutes = none -%}
+        {%- if ns.last_departure is not none -%}
+          {%- set dep_minutes =
+              ((now_ts - ns.last_departure)
+              .total_seconds() / 60)
+              | int -%}
+        {%- endif -%}
         {{ dict(
           has_active=ns.has_active,
           pre_arrival=ns.pre_arrival,
           same_day_changeover=
             ns.same_day_changeover
             and ns.has_active,
-          arrival_today=ns.arrival_today
+          arrival_today=ns.arrival_today,
+          minutes_since_departure=dep_minutes
         ) }}
 
   - choose:
@@ -352,11 +369,10 @@ actions:
               entity_id: !input between_guest_schedule
 
     # STATE: No active guest, no pre-arrival — between
-    # guests mode. Departure delay ensures cleaning crews
-    # can work before energy-saving mode activates.
-    # Skip delay when schedule is already on (periodic
-    # recheck) to avoid restart resetting the timer.
-    # Keep schedule off when a guest arrives later today.
+    # guests mode. Uses computed elapsed time since last
+    # departure instead of an in-action delay, so periodic
+    # rechecks and mode:restart do not reset the timer.
+    # Keeps schedule off when a guest arrives later today.
     default:
       - if:
           - condition: template
@@ -367,11 +383,12 @@ actions:
             target:
               entity_id: !input between_guest_schedule
         else:
-          - condition: state
-            entity_id: !input between_guest_schedule
-            state: "off"
-          - delay:
-              minutes: "{{ departure_delay | int }}"
+          - condition: template
+            value_template: >-
+              {{ state_info.minutes_since_departure
+              is none
+              or state_info.minutes_since_departure
+              | int >= departure_delay | int }}
           - action: switch.turn_on
             target:
               entity_id: !input between_guest_schedule
