@@ -202,7 +202,7 @@ actions:
           has_active=false,
           pre_arrival=false,
           same_day_changeover=false,
-          min_eta=none
+          arrival_today=false
         ) -%}
         {%- for i in range(max_events | int) -%}
           {%- set old_entity =
@@ -234,14 +234,15 @@ actions:
                   < as_datetime(end_dt) -%}
                 {%- set ns.has_active = true -%}
               {%- endif -%}
+              {# Track any event starting today #}
+              {%- if start_date
+                  == today_date
+                  and now_ts
+                  < as_datetime(end_dt) -%}
+                {%- set ns.arrival_today = true -%}
+              {%- endif -%}
               {%- if eta is not none
                   and eta | int > 0 -%}
-                {%- if ns.min_eta is none
-                    or eta | int
-                    < ns.min_eta | int -%}
-                  {%- set ns.min_eta =
-                      eta | int -%}
-                {%- endif -%}
                 {%- if eta | int
                     <= eta_threshold | int -%}
                   {%- set ns.pre_arrival = true -%}
@@ -261,7 +262,7 @@ actions:
           same_day_changeover=
             ns.same_day_changeover
             and ns.has_active,
-          min_eta=ns.min_eta
+          arrival_today=ns.arrival_today
         ) }}
 
   - choose:
@@ -353,9 +354,24 @@ actions:
     # STATE: No active guest, no pre-arrival — between
     # guests mode. Departure delay ensures cleaning crews
     # can work before energy-saving mode activates.
+    # Skip delay when schedule is already on (periodic
+    # recheck) to avoid restart resetting the timer.
+    # Keep schedule off when a guest arrives later today.
     default:
-      - delay:
-          minutes: "{{ departure_delay | int }}"
-      - action: switch.turn_on
-        target:
-          entity_id: !input between_guest_schedule
+      - if:
+          - condition: template
+            value_template: >-
+              {{ state_info.arrival_today }}
+        then:
+          - action: switch.turn_off
+            target:
+              entity_id: !input between_guest_schedule
+        else:
+          - condition: state
+            entity_id: !input between_guest_schedule
+            state: "off"
+          - delay:
+              minutes: "{{ departure_delay | int }}"
+          - action: switch.turn_on
+            target:
+              entity_id: !input between_guest_schedule
