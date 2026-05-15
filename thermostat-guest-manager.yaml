@@ -65,34 +65,34 @@ blueprint:
       description: >-
         Target temperature for single-setpoint modes (heat or
         cool).
-      default: 22
+      default: 72
       selector:
         number:
-          min: 10
-          max: 35
-          unit_of_measurement: "°C"
+          min: 55
+          max: 85
+          unit_of_measurement: "°F"
           mode: box
     target_temp_high:
       name: Target Temperature High
       description: >-
         High/cool setpoint for range modes (heat_cool or auto).
-      default: 24
+      default: 76
       selector:
         number:
-          min: 15
-          max: 35
-          unit_of_measurement: "°C"
+          min: 60
+          max: 85
+          unit_of_measurement: "°F"
           mode: box
     target_temp_low:
       name: Target Temperature Low
       description: >-
         Low/heat setpoint for range modes (heat_cool or auto).
-      default: 20
+      default: 68
       selector:
         number:
-          min: 10
-          max: 30
-          unit_of_measurement: "°C"
+          min: 55
+          max: 80
+          unit_of_measurement: "°F"
           mode: box
     eta_threshold:
       name: ETA Threshold
