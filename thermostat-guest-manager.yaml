@@ -1,0 +1,361 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: Thermostat Guest Schedule Manager (v0.1)
+  description: |
+    Manages thermostat settings based on Rental Control guest occupancy.
+    Runs an energy-saving schedule between guests, pushes a target
+    temperature before guest arrival, suspends schedules during the
+    stay, and handles same-day changeovers.
+
+  domain: automation
+
+  input:
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: >-
+        The calendar associated with the rental control device.
+      selector:
+        entity:
+          domain: calendar
+          integration: rental_control
+    max_events:
+      name: Max Events
+      description: |
+        Number of Rental Control event sensors to check. Should
+        match the max_events setting in the Rental Control
+        configuration.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 10
+          mode: box
+    thermostat:
+      name: Thermostat
+      description: >-
+        The thermostat to control.
+      selector:
+        entity:
+          domain: climate
+    between_guest_schedule:
+      name: Between Guest Schedule
+      description: >-
+        The scheduler switch for the between-guests thermostat
+        schedule.
+      selector:
+        entity:
+          domain: switch
+          integration: scheduler
+    hvac_mode:
+      name: HVAC Mode
+      description: >-
+        HVAC mode to set when preparing for a guest arrival.
+      default: heat_cool
+      selector:
+        select:
+          options:
+            - heat
+            - cool
+            - heat_cool
+            - auto
+    target_temp:
+      name: Target Temperature
+      description: >-
+        Target temperature for single-setpoint modes (heat or
+        cool).
+      default: 72
+      selector:
+        number:
+          min: 55
+          max: 85
+          unit_of_measurement: "°F"
+          mode: box
+    target_temp_high:
+      name: Target Temperature High
+      description: >-
+        High/cool setpoint for range modes (heat_cool or auto).
+      default: 76
+      selector:
+        number:
+          min: 60
+          max: 85
+          unit_of_measurement: "°F"
+          mode: box
+    target_temp_low:
+      name: Target Temperature Low
+      description: >-
+        Low/heat setpoint for range modes (heat_cool or auto).
+      default: 68
+      selector:
+        number:
+          min: 55
+          max: 80
+          unit_of_measurement: "°F"
+          mode: box
+    eta_threshold:
+      name: ETA Threshold
+      description: >-
+        Minutes before guest arrival to push the pre-arrival
+        temperature.
+      default: 180
+      selector:
+        number:
+          min: 30
+          max: 1440
+          unit_of_measurement: minutes
+          mode: box
+    departure_delay:
+      name: Departure Delay
+      description: >-
+        Minutes to wait after guest departure before re-enabling
+        the between-guest schedule. Skipped during same-day
+        changeovers.
+      default: 120
+      selector:
+        number:
+          min: 0
+          max: 480
+          unit_of_measurement: minutes
+          mode: box
+    check_interval:
+      name: Check Interval (Hours)
+      description: >-
+        How often to run the periodic state recheck.
+      default: "/1"
+      selector:
+        select:
+          options:
+            - label: Every hour
+              value: "/1"
+            - label: Every 2 hours
+              value: "/2"
+            - label: Every 3 hours
+              value: "/3"
+            - label: Every 4 hours
+              value: "/4"
+            - label: Every 6 hours
+              value: "/6"
+            - label: Every 8 hours
+              value: "/8"
+            - label: Every 12 hours
+              value: "/12"
+            - label: Once daily
+              value: "/24"
+
+mode: restart
+
+variables:
+  rc: !input rental_control_calendar
+  max_events: !input max_events
+  thermostat: !input thermostat
+  between_guest_schedule: !input between_guest_schedule
+  hvac_mode: !input hvac_mode
+  target_temp: !input target_temp
+  target_temp_high: !input target_temp_high
+  target_temp_low: !input target_temp_low
+  eta_threshold: !input eta_threshold
+  departure_delay: !input departure_delay
+
+  # Derived
+  rc_device: "{{ device_name(rc) | slugify }}"
+  rc_event_entities: >-
+    {%- set ns = namespace(entities=[]) -%}
+    {%- for i in range(max_events | int) -%}
+      {%- set ns.entities = ns.entities +
+      ['sensor.rental_control_' ~ rc_device
+      ~ '_event_' ~ i,
+      'sensor.' ~ rc_device
+      ~ '_rental_control_event_' ~ i] -%}
+    {%- endfor -%}
+    {{ ns.entities }}
+
+triggers:
+  - trigger: state
+    entity_id: !input rental_control_calendar
+    id: calendar_update
+  - trigger: time_pattern
+    hours: !input check_interval
+    id: periodic_sync
+  # state_changed fires for every entity; the condition below
+  # filters to our event sensors. HA state triggers do not
+  # support templated entity_id, so this is the recommended
+  # workaround for dynamically derived entity lists.
+  - trigger: event
+    event_type: state_changed
+    id: event_sensor_update
+
+conditions:
+  - condition: template
+    value_template: >-
+      {{ trigger.id != 'event_sensor_update'
+      or trigger.event.data.entity_id
+      in rc_event_entities }}
+
+actions:
+  - variables:
+      now_ts: "{{ now() }}"
+      today_date: "{{ now().strftime('%Y-%m-%d') }}"
+      state_info: >-
+        {%- set ns = namespace(
+          has_active=false,
+          pre_arrival=false,
+          same_day_changeover=false,
+          min_eta=none
+        ) -%}
+        {%- for i in range(max_events | int) -%}
+          {%- set old_entity =
+              'sensor.rental_control_'
+              ~ rc_device ~ '_event_' ~ i -%}
+          {%- set new_entity = 'sensor.'
+              ~ rc_device
+              ~ '_rental_control_event_' ~ i -%}
+          {%- set entity = new_entity
+              if has_value(new_entity)
+              else old_entity -%}
+          {%- if has_value(entity) -%}
+            {%- set eta =
+                state_attr(entity, 'eta_minutes') -%}
+            {%- set start =
+                state_attr(entity, 'start') -%}
+            {%- set end_dt =
+                state_attr(entity, 'end') -%}
+            {%- if start is not none
+                and end_dt is not none -%}
+              {%- set start_date =
+                  as_datetime(start)
+                  .strftime('%Y-%m-%d') -%}
+              {%- set end_date =
+                  as_datetime(end_dt)
+                  .strftime('%Y-%m-%d') -%}
+              {%- if as_datetime(start) <= now_ts
+                  and now_ts
+                  < as_datetime(end_dt) -%}
+                {%- set ns.has_active = true -%}
+              {%- endif -%}
+              {%- if eta is not none
+                  and eta | int > 0 -%}
+                {%- if ns.min_eta is none
+                    or eta | int
+                    < ns.min_eta | int -%}
+                  {%- set ns.min_eta =
+                      eta | int -%}
+                {%- endif -%}
+                {%- if eta | int
+                    <= eta_threshold | int -%}
+                  {%- set ns.pre_arrival = true -%}
+                {%- endif -%}
+                {%- if start_date
+                    == today_date -%}
+                  {%- set ns.same_day_changeover
+                      = true -%}
+                {%- endif -%}
+              {%- endif -%}
+            {%- endif -%}
+          {%- endif -%}
+        {%- endfor -%}
+        {{ dict(
+          has_active=ns.has_active,
+          pre_arrival=ns.pre_arrival,
+          same_day_changeover=
+            ns.same_day_changeover
+            and ns.has_active,
+          min_eta=ns.min_eta
+        ) }}
+
+  - choose:
+      # STATE: Same-day changeover — guest leaving today,
+      # next guest arriving today
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ state_info.same_day_changeover }}
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input thermostat
+            data:
+              hvac_mode: !input hvac_mode
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ hvac_mode in
+                      ['heat_cool', 'auto'] }}
+                sequence:
+                  - action: climate.set_temperature
+                    target:
+                      entity_id: !input thermostat
+                    data:
+                      target_temp_high: !input target_temp_high
+                      target_temp_low: !input target_temp_low
+            default:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input thermostat
+                data:
+                  temperature: !input target_temp
+          - action: switch.turn_off
+            target:
+              entity_id: !input between_guest_schedule
+
+      # STATE: Pre-arrival — upcoming guest within ETA
+      # threshold, no active guest yet
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ state_info.pre_arrival
+              and not state_info.has_active }}
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input between_guest_schedule
+          - delay:
+              seconds: 1
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input thermostat
+            data:
+              hvac_mode: !input hvac_mode
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ hvac_mode in
+                      ['heat_cool', 'auto'] }}
+                sequence:
+                  - action: climate.set_temperature
+                    target:
+                      entity_id: !input thermostat
+                    data:
+                      target_temp_high: !input target_temp_high
+                      target_temp_low: !input target_temp_low
+            default:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input thermostat
+                data:
+                  temperature: !input target_temp
+
+      # STATE: Active guest (no changeover) — ensure
+      # schedule is off
+      - conditions:
+          - condition: template
+            value_template: >-
+              {{ state_info.has_active
+              and not state_info.same_day_changeover }}
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: !input between_guest_schedule
+
+    # STATE: No active guest, no pre-arrival — between
+    # guests mode. Departure delay ensures cleaning crews
+    # can work before energy-saving mode activates.
+    default:
+      - delay:
+          minutes: "{{ departure_delay | int }}"
+      - action: switch.turn_on
+        target:
+          entity_id: !input between_guest_schedule
