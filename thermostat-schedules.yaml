@@ -1,5 +1,6 @@
 ---
 # SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
   name: Airbnb Thermostat Schedule Manager (v0.4.1)
 
