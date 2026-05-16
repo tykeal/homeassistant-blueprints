@@ -195,10 +195,10 @@ conditions:
 
 actions:
   - variables:
-      now_ts: "{{ now() }}"
       today_date: >-
         {{ as_local(now()).strftime('%Y-%m-%d') }}
       state_info: >-
+        {%- set now_ts = now() -%}
         {%- set ns = namespace(
           has_active=false,
           pre_arrival=false,
