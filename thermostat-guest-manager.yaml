@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Thermostat Guest Schedule Manager (v0.1)
+  name: Thermostat Guest Schedule Manager (v0.2)
   description: |
     Manages thermostat settings based on Rental Control guest occupancy.
     Runs an energy-saving schedule between guests, pushes a target
