@@ -58,13 +58,25 @@ conditions:
   - condition: state
     entity_id: !input rental_control_calendar
     state: "off"
-  - condition: state
-    entity_id: !input lock
-    state: unlocked
-    for:
-      minutes: !input wait_time
 
 actions:
-  - action: lock.lock
-    target:
-      entity_id: !input lock
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: calendar_off
+        sequence:
+          - delay:
+              minutes: !input wait_time
+          - condition: state
+            entity_id: !input lock
+            state: unlocked
+          - action: lock.lock
+            target:
+              entity_id: !input lock
+      - conditions:
+          - condition: trigger
+            id: lock_unlocked
+        sequence:
+          - action: lock.lock
+            target:
+              entity_id: !input lock
