@@ -1,0 +1,86 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: RC Automatic Door Lock (v0.1)
+  description: |
+    Automatically locks a door when no guest is present. When the
+    Rental Control calendar turns off (guest departs) or the lock
+    is unlocked while no guest is present, the door will be locked
+    after a configurable delay.
+
+  domain: automation
+
+  input:
+    rental_control_calendar:
+      name: Rental Control Calendar
+      description: >-
+        The calendar associated with the rental control device.
+      selector:
+        entity:
+          domain: calendar
+          integration: rental_control
+    lock:
+      name: Door Lock
+      description: >-
+        The lock to automatically secure between guests.
+      selector:
+        entity:
+          domain: lock
+    wait_time:
+      name: Lock Delay
+      description: >-
+        Minutes to wait before automatically locking. Applies
+        after a guest departs or the lock is unlocked.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+          mode: box
+
+mode: single
+
+triggers:
+  - trigger: state
+    entity_id: !input rental_control_calendar
+    from: "on"
+    to: "off"
+    id: calendar_off
+  - trigger: state
+    entity_id: !input lock
+    to: unlocked
+    for:
+      minutes: !input wait_time
+    id: lock_unlocked
+
+conditions:
+  - condition: state
+    entity_id: !input rental_control_calendar
+    state: "off"
+
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: calendar_off
+        sequence:
+          - delay:
+              minutes: !input wait_time
+          - condition: state
+            entity_id: !input rental_control_calendar
+            state: "off"
+          - condition: state
+            entity_id: !input lock
+            state: unlocked
+          - action: lock.lock
+            target:
+              entity_id: !input lock
+      - conditions:
+          - condition: trigger
+            id: lock_unlocked
+        sequence:
+          - action: lock.lock
+            target:
+              entity_id: !input lock
