@@ -45,6 +45,7 @@ mode: single
 triggers:
   - trigger: state
     entity_id: !input rental_control_calendar
+    from: "on"
     to: "off"
     id: calendar_off
   - trigger: state
