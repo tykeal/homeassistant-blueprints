@@ -30,8 +30,8 @@ blueprint:
     wait_time:
       name: Lock Delay
       description: >-
-        Minutes to wait after the lock is unlocked before
-        automatically locking.
+        Minutes to wait before automatically locking. Applies
+        after a guest departs or the lock is unlocked.
       default: 5
       selector:
         number:
@@ -67,6 +67,9 @@ actions:
         sequence:
           - delay:
               minutes: !input wait_time
+          - condition: state
+            entity_id: !input rental_control_calendar
+            state: "off"
           - condition: state
             entity_id: !input lock
             state: unlocked
