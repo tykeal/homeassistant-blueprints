@@ -1,0 +1,372 @@
+---
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
+blueprint:
+  name: Hostaway Battery Task Creator (v0.1)
+  description: >-
+    Creates or updates Hostaway battery replacement tasks for low
+    battery sensors and completes them after batteries recover.
+  domain: automation
+  input:
+    threshold:
+      name: Battery warning level
+      description: >-
+        Battery sensors below this threshold will create or update
+        a Hostaway task.
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 100
+          step: 5
+          mode: slider
+          unit_of_measurement: "%"
+    recovery_threshold:
+      name: Battery recovered level
+      description: >-
+        Battery sensors at or above this level will complete any
+        matching Hostaway task.
+      default: 80
+      selector:
+        number:
+          min: 50
+          max: 100
+          step: 5
+          mode: slider
+          unit_of_measurement: "%"
+    interval:
+      name: Periodic check interval
+      description: How often to run the battery check.
+      default: 30
+      selector:
+        number:
+          min: 5
+          max: 60
+          mode: box
+          step: 1
+          unit_of_measurement: minutes
+    supervisor_user_id:
+      name: Supervisor user ID
+      description: >-
+        Hostaway supervisor user ID. Find this via Developer Tools
+        → Services → hostaway.get_users.
+      selector:
+        number:
+          min: 1
+          mode: box
+    can_be_picked_by_group_id:
+      name: Group assignment ID
+      description: >-
+        Hostaway group ID that can pick up the created task. Find
+        this via Developer Tools → Services → hostaway.get_groups.
+      selector:
+        number:
+          min: 1
+          mode: box
+    task_category:
+      name: Task category IDs
+      description: >-
+        Optional category ID list to send as categories_map when
+        creating a Hostaway task.
+      default: []
+      selector:
+        object: {}
+    exclude:
+      name: Excluded battery sensors
+      description: >-
+        Battery sensors to exclude from low-battery detection.
+        Only entities are supported.
+      # yamllint disable rule:braces
+      default: { entity_id: [] }
+      # yamllint enable rule:braces
+      selector:
+        target:
+          entity:
+            device_class: battery
+
+variables:
+  threshold: !input threshold
+  recovery_threshold: !input recovery_threshold
+  supervisor_user_id: !input supervisor_user_id
+  can_be_picked_by_group_id: !input can_be_picked_by_group_id
+  task_category: !input task_category
+  exclude: !input exclude
+  low_batteries: >-
+    {% set ns = namespace(items=[]) %}
+    {% for state in states.sensor
+       | selectattr('attributes.device_class', '==', 'battery') %}
+      {% if 0 <= state.state | int(-1) < threshold | int
+         and state.entity_id not in (exclude.entity_id | default([], true)) %}
+        {% set area = area_name(device_id(state.entity_id)) %}
+        {% if area %}
+          {% set dev = device_attr(
+            device_id(state.entity_id),
+            'name'
+          ) | default(state.name, true) %}
+          {% set slug = dev | slugify | replace('-', '_') %}
+          {% set btype_state =
+            states('sensor.' ~ slug ~ '_battery_type') %}
+          {% set btype =
+            btype_state if btype_state not in [
+              'unknown',
+              'unavailable',
+              'none',
+              ''
+            ] else 'unknown' %}
+          {% set ns.items = ns.items + [dict(
+            entity_id=state.entity_id,
+            name=dev,
+            area=area,
+            slug=slug,
+            percent=state.state | int(-1),
+            battery_type=btype
+          )] %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.items }}
+  recovered_batteries: >-
+    {% set ns = namespace(items=[]) %}
+    {% for state in states.sensor
+       | selectattr('attributes.device_class', '==', 'battery') %}
+      {% if state.state | int(-1) >= recovery_threshold | int
+         and state.entity_id not in (exclude.entity_id | default([], true)) %}
+        {% set area = area_name(device_id(state.entity_id)) %}
+        {% if area %}
+          {% set dev = device_attr(
+            device_id(state.entity_id),
+            'name'
+          ) | default(state.name, true) %}
+          {% set slug = dev | slugify | replace('-', '_') %}
+          {% set btype_state =
+            states('sensor.' ~ slug ~ '_battery_type') %}
+          {% set btype =
+            btype_state if btype_state not in [
+              'unknown',
+              'unavailable',
+              'none',
+              ''
+            ] else 'unknown' %}
+          {% set ns.items = ns.items + [dict(
+            entity_id=state.entity_id,
+            name=dev,
+            area=area,
+            slug=slug,
+            percent=state.state | int(-1),
+            battery_type=btype
+          )] %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.items }}
+
+trigger_variables:
+  interval: !input interval
+
+triggers:
+  - trigger: time_pattern
+    minutes: "/{{ interval | int }}"
+
+action:
+  - condition: template
+    value_template: "{{ threshold | int < recovery_threshold | int }}"
+  - repeat:
+      for_each: "{{ low_batteries }}"
+      sequence:
+        - variables:
+            listing_name: "{{ repeat.item.area }}"
+            title: >-
+              Replace Batteries: {{ repeat.item.area }}
+              {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+            res_sensor: >-
+              sensor.hostaway_{{ repeat.item.area | slugify
+              | replace('-', '_') }}_reservation_status
+            res_state: "{{ states(res_sensor) }}"
+            check_out: "{{ state_attr(res_sensor, 'check_out') }}"
+            can_start_from: >-
+              {% if res_state in [
+                'checked_in',
+                'awaiting_checkin',
+                'awaiting_guest',
+                'pending_approval',
+                'owner_stay'
+              ] and check_out not in ['', none] %}
+                {% set dt = as_datetime(check_out) %}
+                {% if dt is not none %}
+                  {{ dt.strftime('%Y-%m-%d') }}
+                {% else %}
+                  {{ now().strftime('%Y-%m-%d') }}
+                {% endif %}
+              {% else %}
+                {{ now().strftime('%Y-%m-%d') }}
+              {% endif %}
+            should_end_by: >-
+              {% set ns = namespace(next_check_in=none) %}
+              {% set start_dt = as_datetime(can_start_from) %}
+              {% if start_dt is none %}
+                {% set start_dt = now() %}
+              {% endif %}
+              {% set default_end = (
+                start_dt + timedelta(days=3)
+              ).strftime('%Y-%m-%d') %}
+              {% for reservation in
+                 state_attr(res_sensor, 'upcoming_reservations')
+                 | default([], true) %}
+                {% set next_start =
+                  reservation.check_in | default(none, true) %}
+                {% if next_start not in ['', none] %}
+                  {% set next_dt = as_datetime(next_start) %}
+                  {% if next_dt is not none %}
+                    {% set next_date =
+                      next_dt.strftime('%Y-%m-%d') %}
+                    {% if next_date > can_start_from and (
+                      ns.next_check_in is none
+                      or next_date < ns.next_check_in
+                    ) %}
+                      {% set ns.next_check_in = next_date %}
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {% if ns.next_check_in is not none
+                 and ns.next_check_in < default_end %}
+                {{ ns.next_check_in }}
+              {% else %}
+                {{ default_end }}
+              {% endif %}
+        - action: hostaway.get_tasks
+          data:
+            listing_name: "{{ listing_name }}"
+          response_variable: existing_tasks
+        - variables:
+            matching_task_info: >-
+              {% set ns = namespace(tid=none, csf='', seb='') %}
+              {% for task in existing_tasks.tasks | default([], true) %}
+                {% if ns.tid is none %}
+                  {% set task_title =
+                    task.title | default('', true) | string %}
+                  {% if task_title == title
+                     and task.status | default('', true)
+                     not in ['completed', 'cancelled'] %}
+                    {% set ns.tid = task.id %}
+                    {% set raw_csf = task.canStartFrom | default('', true) %}
+                    {% if raw_csf not in ['', none] %}
+                      {% set parsed = as_datetime(raw_csf) %}
+                      {% if parsed is not none %}
+                        {% set ns.csf = parsed.strftime('%Y-%m-%d') %}
+                      {% endif %}
+                    {% endif %}
+                    {% set raw_seb = task.shouldEndBy | default('', true) %}
+                    {% if raw_seb not in ['', none] %}
+                      {% set parsed = as_datetime(raw_seb) %}
+                      {% if parsed is not none %}
+                        {% set ns.seb = parsed.strftime('%Y-%m-%d') %}
+                      {% endif %}
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {{ dict(
+                id=ns.tid,
+                can_start_from=ns.csf,
+                should_end_by=ns.seb
+              ) }}
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: >-
+                    {{ matching_task_info.id is none
+                       and (task_category | default([], true) | count > 0) }}
+              sequence:
+                - action: hostaway.create_task
+                  data: >-
+                    {{ dict(
+                      title=title | string,
+                      listing_name=listing_name | string,
+                      supervisor_user_id=supervisor_user_id | int,
+                      can_be_picked_by_group_id=
+                      can_be_picked_by_group_id | int,
+                      can_start_from=can_start_from | string,
+                      should_end_by=should_end_by | string,
+                      status='pending',
+                      categories_map=task_category,
+                      description='Battery at ' ~ repeat.item.percent ~ '% on '
+                      ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                    ) }}
+            - conditions:
+                - condition: template
+                  value_template: "{{ matching_task_info.id is none }}"
+              sequence:
+                - action: hostaway.create_task
+                  data: >-
+                    {{ dict(
+                      title=title | string,
+                      listing_name=listing_name | string,
+                      supervisor_user_id=supervisor_user_id | int,
+                      can_be_picked_by_group_id=
+                      can_be_picked_by_group_id | int,
+                      can_start_from=can_start_from | string,
+                      should_end_by=should_end_by | string,
+                      status='pending',
+                      description='Battery at ' ~ repeat.item.percent ~ '% on '
+                      ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                    ) }}
+            - conditions:
+                - condition: template
+                  value_template: >-
+                    {{ matching_task_info.id is not none
+                       and (
+                         matching_task_info.can_start_from != can_start_from
+                         or matching_task_info.should_end_by != should_end_by
+                       ) }}
+              sequence:
+                - action: hostaway.update_task
+                  data: >-
+                    {{ dict(
+                      task_id=matching_task_info.id | int,
+                      can_start_from=can_start_from | string,
+                      should_end_by=should_end_by | string
+                    ) }}
+  - repeat:
+      for_each: "{{ recovered_batteries }}"
+      sequence:
+        - variables:
+            title: >-
+              Replace Batteries: {{ repeat.item.area }}
+              {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+        - action: hostaway.get_tasks
+          data:
+            listing_name: "{{ repeat.item.area }}"
+          response_variable: existing_tasks
+        - variables:
+            matching_task_id: >-
+              {% set ns = namespace(tid=none) %}
+              {% for task in existing_tasks.tasks | default([], true) %}
+                {% if ns.tid is none %}
+                  {% set task_title =
+                    task.title | default('', true) | string %}
+                  {% if task_title == title
+                     and task.status | default('', true)
+                     not in ['completed', 'cancelled'] %}
+                    {% set ns.tid = task.id %}
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {{ ns.tid }}
+        - if:
+            - condition: template
+              value_template: "{{ matching_task_id is not none }}"
+          then:
+            - action: hostaway.update_task
+              data: >-
+                {{ dict(
+                  task_id=matching_task_id | int,
+                  status='completed',
+                  resolution_note='Battery replaced - '
+                  ~ repeat.item.name
+                  ~ ' now at '
+                  ~ repeat.item.percent
+                  ~ '%'
+                ) }}
+
+mode: single
