@@ -124,12 +124,44 @@ variables:
         {% endif %}
       {% endif %}
     {% endfor %}
+    {% for state in states.binary_sensor
+       | selectattr('attributes.device_class', '==', 'battery') %}
+      {% if state.state == 'on'
+         and state.entity_id not in (exclude.entity_id | default([], true)) %}
+        {% set area = area_name(device_id(state.entity_id)) %}
+        {% if area %}
+          {% set dev = device_attr(
+            device_id(state.entity_id),
+            'name'
+          ) | default(state.name, true) %}
+          {% set slug = dev | slugify | replace('-', '_') %}
+          {% set btype_state =
+            states('sensor.' ~ slug ~ '_battery_type') %}
+          {% set btype =
+            btype_state if btype_state not in [
+              'unknown',
+              'unavailable',
+              'none',
+              ''
+            ] else 'unknown' %}
+          {% set ns.items = ns.items + [dict(
+            entity_id=state.entity_id,
+            name=dev,
+            area=area,
+            slug=slug,
+            percent=0,
+            battery_type=btype
+          )] %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
     {{ ns.items }}
   recovered_batteries: >-
     {% set ns = namespace(items=[]) %}
     {% for state in states.sensor
        | selectattr('attributes.device_class', '==', 'battery') %}
-      {% if state.state | int(-1) >= recovery_threshold | int
+      {% if 0 <= state.state | int(-1)
+         and state.state | int(-1) >= recovery_threshold | int
          and state.entity_id not in (exclude.entity_id | default([], true)) %}
         {% set area = area_name(device_id(state.entity_id)) %}
         {% if area %}
@@ -158,6 +190,37 @@ variables:
         {% endif %}
       {% endif %}
     {% endfor %}
+    {% for state in states.binary_sensor
+       | selectattr('attributes.device_class', '==', 'battery') %}
+      {% if state.state == 'off'
+         and state.entity_id not in (exclude.entity_id | default([], true)) %}
+        {% set area = area_name(device_id(state.entity_id)) %}
+        {% if area %}
+          {% set dev = device_attr(
+            device_id(state.entity_id),
+            'name'
+          ) | default(state.name, true) %}
+          {% set slug = dev | slugify | replace('-', '_') %}
+          {% set btype_state =
+            states('sensor.' ~ slug ~ '_battery_type') %}
+          {% set btype =
+            btype_state if btype_state not in [
+              'unknown',
+              'unavailable',
+              'none',
+              ''
+            ] else 'unknown' %}
+          {% set ns.items = ns.items + [dict(
+            entity_id=state.entity_id,
+            name=dev,
+            area=area,
+            slug=slug,
+            percent=100,
+            battery_type=btype
+          )] %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
     {{ ns.items }}
 
 trigger_variables:
@@ -167,9 +230,18 @@ triggers:
   - trigger: time_pattern
     minutes: "/{{ interval | int }}"
 
-action:
-  - condition: template
-    value_template: "{{ threshold | int < recovery_threshold | int }}"
+actions:
+  - if:
+      - condition: template
+        value_template: "{{ threshold | int >= recovery_threshold | int }}"
+    then:
+      - action: system_log.write
+        data:
+          level: warning
+          message: >-
+            Hostaway Battery Task Creator is misconfigured:
+            threshold must be below recovery_threshold.
+      - stop: Invalid threshold configuration
   - repeat:
       for_each: "{{ low_batteries }}"
       sequence:
@@ -178,6 +250,8 @@ action:
             title: >-
               Replace Batteries: {{ repeat.item.area }}
               {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+            task_source_marker: >-
+              Source entity: {{ repeat.item.entity_id }}
             res_sensor: >-
               sensor.hostaway_{{ repeat.item.area | slugify
               | replace('-', '_') }}_reservation_status
@@ -245,7 +319,10 @@ action:
                 {% if ns.tid is none %}
                   {% set task_title =
                     task.title | default('', true) | string %}
-                  {% if task_title == title
+                  {% set task_description =
+                    task.description | default('', true) | string %}
+                  {% if (task_source_marker in task_description
+                     or task_title == title)
                      and task.status | default('', true)
                      not in ['completed', 'cancelled'] %}
                     {% set ns.tid = task.id %}
@@ -292,6 +369,7 @@ action:
                       categories_map=task_category,
                       description='Battery at ' ~ repeat.item.percent ~ '% on '
                       ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                      ~ '\n' ~ task_source_marker
                     ) }}
             - conditions:
                 - condition: template
@@ -310,6 +388,7 @@ action:
                       status='pending',
                       description='Battery at ' ~ repeat.item.percent ~ '% on '
                       ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                      ~ '\n' ~ task_source_marker
                     ) }}
             - conditions:
                 - condition: template
@@ -334,33 +413,38 @@ action:
             title: >-
               Replace Batteries: {{ repeat.item.area }}
               {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+            task_source_marker: >-
+              Source entity: {{ repeat.item.entity_id }}
         - action: hostaway.get_tasks
           data:
             listing_name: "{{ repeat.item.area }}"
           response_variable: existing_tasks
         - variables:
-            matching_task_id: >-
+            matching_task_info: >-
               {% set ns = namespace(tid=none) %}
               {% for task in existing_tasks.tasks | default([], true) %}
                 {% if ns.tid is none %}
                   {% set task_title =
                     task.title | default('', true) | string %}
-                  {% if task_title == title
+                  {% set task_description =
+                    task.description | default('', true) | string %}
+                  {% if (task_source_marker in task_description
+                     or task_title == title)
                      and task.status | default('', true)
                      not in ['completed', 'cancelled'] %}
                     {% set ns.tid = task.id %}
                   {% endif %}
                 {% endif %}
               {% endfor %}
-              {{ ns.tid }}
+              {{ dict(id=ns.tid) }}
         - if:
             - condition: template
-              value_template: "{{ matching_task_id is not none }}"
+              value_template: "{{ matching_task_info.id is not none }}"
           then:
             - action: hostaway.update_task
               data: >-
                 {{ dict(
-                  task_id=matching_task_id | int,
+                  task_id=matching_task_info.id | int,
                   status='completed',
                   resolution_note='Battery replaced - '
                   ~ repeat.item.name
