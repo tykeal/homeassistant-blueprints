@@ -278,7 +278,7 @@ actions:
             listing_name: "{{ repeat.item.area }}"
             title: >-
               Replace Batteries: {{ repeat.item.area }}
-              {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+              - {{ repeat.item.name }} - {{ repeat.item.battery_type }}
             task_source_marker: >-
               Source entity: {{ repeat.item.entity_id }}
             res_sensor: >-
@@ -529,7 +529,7 @@ actions:
         - variables:
             title: >-
               Replace Batteries: {{ repeat.item.area }}
-              {{ repeat.item.name }} - {{ repeat.item.battery_type }}
+              - {{ repeat.item.name }} - {{ repeat.item.battery_type }}
             task_source_marker: >-
               Source entity: {{ repeat.item.entity_id }}
         - action: hostaway.get_tasks
