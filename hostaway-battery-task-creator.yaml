@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.7)
+  name: Hostaway Battery Task Creator (v0.8)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -49,8 +49,8 @@ blueprint:
               value: "/15"
             - label: Every 30 minutes
               value: "/30"
-            - label: Every 60 minutes
-              value: "/60"
+            - label: Every hour
+              value: "0"
     supervisor_user_id:
       name: Supervisor user ID
       description: >-
