@@ -349,9 +349,14 @@ actions:
                   second=0
                 ) -%}
                 {%- if one_hour_before < fifteen -%}
-                  {{- one_hour_before.strftime('%Y-%m-%d %H:%M:%S') -}}
+                  {%- set candidate_end_dt = one_hour_before -%}
                 {%- else -%}
-                  {{- fifteen.strftime('%Y-%m-%d %H:%M:%S') -}}
+                  {%- set candidate_end_dt = fifteen -%}
+                {%- endif -%}
+                {%- if candidate_end_dt < start_dt -%}
+                  {{- start_dt.strftime('%Y-%m-%d %H:%M:%S') -}}
+                {%- else -%}
+                  {{- candidate_end_dt.strftime('%Y-%m-%d %H:%M:%S') -}}
                 {%- endif -%}
               {%- else -%}
                 {{- default_end_dt.strftime('%Y-%m-%d %H:%M:%S') -}}
