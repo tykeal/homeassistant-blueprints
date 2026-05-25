@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.6)
+  name: Hostaway Battery Task Creator (v0.7)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -294,24 +294,36 @@ actions:
                 'pending_approval',
                 'owner_stay'
               ] and check_out not in ['', none] -%}
-                {%- set dt = as_datetime(check_out) -%}
-                {%- if dt is not none -%}
-                  {{- dt.strftime('%Y-%m-%d') -}}
+                {%- set co_dt = as_datetime(check_out) -%}
+                {%- if co_dt is not none -%}
+                  {%- set eleven = co_dt.replace(
+                    hour=11,
+                    minute=0,
+                    second=0
+                  ) -%}
+                  {%- if co_dt > eleven -%}
+                    {{- co_dt.strftime('%Y-%m-%d %H:%M:%S') -}}
+                  {%- else -%}
+                    {{- eleven.strftime('%Y-%m-%d %H:%M:%S') -}}
+                  {%- endif -%}
                 {%- else -%}
-                  {{- now().strftime('%Y-%m-%d') -}}
+                  {{- now().strftime('%Y-%m-%d') ~ ' 11:00:00' -}}
                 {%- endif -%}
               {%- else -%}
-                {{- now().strftime('%Y-%m-%d') -}}
+                {{- now().strftime('%Y-%m-%d') ~ ' 11:00:00' -}}
               {%- endif -%}
             should_end_by: >-
-              {%- set ns = namespace(next_check_in=none) -%}
+              {%- set ns = namespace(next_checkin_dt=none) -%}
               {%- set start_dt = as_datetime(can_start_from) -%}
               {%- if start_dt is none -%}
                 {%- set start_dt = now() -%}
               {%- endif -%}
-              {%- set default_end = (
-                start_dt + timedelta(days=3)
-              ).strftime('%Y-%m-%d') -%}
+              {%- set three_days = start_dt + timedelta(days=3) -%}
+              {%- set default_end_dt = three_days.replace(
+                hour=15,
+                minute=0,
+                second=0
+              ) -%}
               {%- for reservation in
                  state_attr(res_sensor, 'upcoming_reservations')
                  | default([], true) -%}
@@ -319,23 +331,30 @@ actions:
                   reservation.check_in | default(none, true) -%}
                 {%- if next_start not in ['', none] -%}
                   {%- set next_dt = as_datetime(next_start) -%}
-                  {%- if next_dt is not none -%}
-                    {%- set next_date =
-                      next_dt.strftime('%Y-%m-%d') -%}
-                    {%- if next_date > can_start_from and (
-                      ns.next_check_in is none
-                      or next_date < ns.next_check_in
-                    ) -%}
-                      {%- set ns.next_check_in = next_date -%}
+                  {%- if next_dt is not none and next_dt > start_dt -%}
+                    {%- if ns.next_checkin_dt is none
+                       or next_dt < ns.next_checkin_dt -%}
+                      {%- set ns.next_checkin_dt = next_dt -%}
                     {%- endif -%}
                   {%- endif -%}
                 {%- endif -%}
               {%- endfor -%}
-              {%- if ns.next_check_in is not none
-                 and ns.next_check_in < default_end -%}
-                {{- ns.next_check_in -}}
+              {%- if ns.next_checkin_dt is not none
+                 and ns.next_checkin_dt < three_days -%}
+                {%- set one_hour_before =
+                  ns.next_checkin_dt - timedelta(hours=1) -%}
+                {%- set fifteen = ns.next_checkin_dt.replace(
+                  hour=15,
+                  minute=0,
+                  second=0
+                ) -%}
+                {%- if one_hour_before < fifteen -%}
+                  {{- one_hour_before.strftime('%Y-%m-%d %H:%M:%S') -}}
+                {%- else -%}
+                  {{- fifteen.strftime('%Y-%m-%d %H:%M:%S') -}}
+                {%- endif -%}
               {%- else -%}
-                {{- default_end -}}
+                {{- default_end_dt.strftime('%Y-%m-%d %H:%M:%S') -}}
               {%- endif -%}
         - action: hostaway.get_tasks
           data: >-
@@ -366,14 +385,14 @@ actions:
                     {% if raw_csf not in ['', none] %}
                       {% set parsed = as_datetime(raw_csf) %}
                       {% if parsed is not none %}
-                        {% set ns.csf = parsed.strftime('%Y-%m-%d') %}
+                        {% set ns.csf = parsed.strftime('%Y-%m-%d %H:%M:%S') %}
                       {% endif %}
                     {% endif %}
                     {% set raw_seb = task.shouldEndBy | default('', true) %}
                     {% if raw_seb not in ['', none] %}
                       {% set parsed = as_datetime(raw_seb) %}
                       {% if parsed is not none %}
-                        {% set ns.seb = parsed.strftime('%Y-%m-%d') %}
+                        {% set ns.seb = parsed.strftime('%Y-%m-%d %H:%M:%S') %}
                       {% endif %}
                     {% endif %}
                   {% endif %}
