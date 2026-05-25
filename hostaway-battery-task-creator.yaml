@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.3)
+  name: Hostaway Battery Task Creator (v0.4)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -336,13 +336,13 @@ actions:
               {%- endif -%}
         - action: hostaway.get_tasks
           data: >-
-            {%- set base = dict(
-              listing_name=listing_name | string
-            ) -%}
             {%- if config_entry_id -%}
-              {{- dict(**base, config_entry_id=config_entry_id) -}}
+              {{- dict(
+                listing_name=listing_name | string,
+                config_entry_id=config_entry_id
+              ) -}}
             {%- else -%}
-              {{- base -}}
+              {{- dict(listing_name=listing_name | string) -}}
             {%- endif -%}
           response_variable: existing_tasks
         - variables:
@@ -390,24 +390,41 @@ actions:
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {%- set base = dict(
-                      title=title | string,
-                      listing_name=listing_name | string,
-                      supervisor_user_id=supervisor_user_id | int,
-                      can_be_picked_by_group_id=
-                      can_be_picked_by_group_id | int,
-                      can_start_from=can_start_from | trim | string,
-                      should_end_by=should_end_by | trim | string,
-                      status='pending',
-                      categories_map=task_category,
-                      description='Battery at ' ~ repeat.item.percent ~ '% on '
-                      ~ repeat.item.name ~ ' in ' ~ repeat.item.area
-                      ~ '\n' ~ task_source_marker
-                    ) -%}
                     {%- if config_entry_id -%}
-                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        categories_map=task_category,
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        config_entry_id=config_entry_id
+                      ) -}}
                     {%- else -%}
-                      {{- base -}}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        categories_map=task_category,
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker
+                      ) -}}
                     {%- endif -%}
             - conditions:
                 - condition: template
@@ -415,23 +432,39 @@ actions:
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {%- set base = dict(
-                      title=title | string,
-                      listing_name=listing_name | string,
-                      supervisor_user_id=supervisor_user_id | int,
-                      can_be_picked_by_group_id=
-                      can_be_picked_by_group_id | int,
-                      can_start_from=can_start_from | trim | string,
-                      should_end_by=should_end_by | trim | string,
-                      status='pending',
-                      description='Battery at ' ~ repeat.item.percent ~ '% on '
-                      ~ repeat.item.name ~ ' in ' ~ repeat.item.area
-                      ~ '\n' ~ task_source_marker
-                    ) -%}
                     {%- if config_entry_id -%}
-                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        config_entry_id=config_entry_id
+                      ) -}}
                     {%- else -%}
-                      {{- base -}}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker
+                      ) -}}
                     {%- endif -%}
             - conditions:
                 - condition: template
@@ -446,15 +479,19 @@ actions:
               sequence:
                 - action: hostaway.update_task
                   data: >-
-                    {%- set base = dict(
-                      task_id=matching_task_info.id | int,
-                      can_start_from=can_start_from | trim | string,
-                      should_end_by=should_end_by | trim | string
-                    ) -%}
                     {%- if config_entry_id -%}
-                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                      {{- dict(
+                        task_id=matching_task_info.id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        config_entry_id=config_entry_id
+                      ) -}}
                     {%- else -%}
-                      {{- base -}}
+                      {{- dict(
+                        task_id=matching_task_info.id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string
+                      ) -}}
                     {%- endif -%}
   - repeat:
       for_each: "{{ recovered_batteries }}"
@@ -467,13 +504,13 @@ actions:
               Source entity: {{ repeat.item.entity_id }}
         - action: hostaway.get_tasks
           data: >-
-            {%- set base = dict(
-              listing_name=repeat.item.area | string
-            ) -%}
             {%- if config_entry_id -%}
-              {{- dict(**base, config_entry_id=config_entry_id) -}}
+              {{- dict(
+                listing_name=repeat.item.area | string,
+                config_entry_id=config_entry_id
+              ) -}}
             {%- else -%}
-              {{- base -}}
+              {{- dict(listing_name=repeat.item.area | string) -}}
             {%- endif -%}
           response_variable: existing_tasks
         - variables:
@@ -500,19 +537,27 @@ actions:
           then:
             - action: hostaway.update_task
               data: >-
-                {%- set base = dict(
-                  task_id=matching_task_info.id | int,
-                  status='completed',
-                  resolution_note='Battery replaced - '
-                  ~ repeat.item.name
-                  ~ ' now at '
-                  ~ repeat.item.percent
-                  ~ '%'
-                ) -%}
                 {%- if config_entry_id -%}
-                  {{- dict(**base, config_entry_id=config_entry_id) -}}
+                  {{- dict(
+                    task_id=matching_task_info.id | int,
+                    status='completed',
+                    resolution_note='Battery replaced - '
+                    ~ repeat.item.name
+                    ~ ' now at '
+                    ~ repeat.item.percent
+                    ~ '%',
+                    config_entry_id=config_entry_id
+                  ) -}}
                 {%- else -%}
-                  {{- base -}}
+                  {{- dict(
+                    task_id=matching_task_info.id | int,
+                    status='completed',
+                    resolution_note='Battery replaced - '
+                    ~ repeat.item.name
+                    ~ ' now at '
+                    ~ repeat.item.percent
+                    ~ '%'
+                  ) -}}
                 {%- endif -%}
 
 mode: single
