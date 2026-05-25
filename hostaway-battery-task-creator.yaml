@@ -51,6 +51,8 @@ blueprint:
               value: "/30"
             - label: Every 59 minutes
               value: "/59"
+            - label: Every hour
+              value: "0"
     supervisor_user_id:
       name: Supervisor user ID
       description: >-
