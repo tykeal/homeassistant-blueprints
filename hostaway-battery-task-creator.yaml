@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.1)
+  name: Hostaway Battery Task Creator (v0.2)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -83,6 +83,15 @@ blueprint:
         target:
           entity:
             device_class: battery
+    config_entry_id:
+      name: Hostaway config entry
+      description: >-
+        Target a specific Hostaway config entry. Only required
+        when multiple Hostaway accounts are configured.
+      default: ""
+      selector:
+        config_entry:
+          integration: hostaway
 
 variables:
   threshold: !input threshold
@@ -91,6 +100,7 @@ variables:
   can_be_picked_by_group_id: !input can_be_picked_by_group_id
   task_category: !input task_category
   exclude: !input exclude
+  config_entry_id: !input config_entry_id
   low_batteries: >-
     {% set ns = namespace(items=[]) %}
     {% for state in states.sensor
@@ -309,8 +319,15 @@ actions:
                 {{- default_end -}}
               {%- endif -%}
         - action: hostaway.get_tasks
-          data:
-            listing_name: "{{ listing_name }}"
+          data: >-
+            {%- set base = dict(
+              listing_name=listing_name | string
+            ) -%}
+            {%- if config_entry_id -%}
+              {{- dict(**base, config_entry_id=config_entry_id) -}}
+            {%- else -%}
+              {{- base -}}
+            {%- endif -%}
           response_variable: existing_tasks
         - variables:
             matching_task_info: >-
@@ -357,7 +374,7 @@ actions:
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {{ dict(
+                    {%- set base = dict(
                       title=title | string,
                       listing_name=listing_name | string,
                       supervisor_user_id=supervisor_user_id | int,
@@ -370,14 +387,19 @@ actions:
                       description='Battery at ' ~ repeat.item.percent ~ '% on '
                       ~ repeat.item.name ~ ' in ' ~ repeat.item.area
                       ~ '\n' ~ task_source_marker
-                    ) }}
+                    ) -%}
+                    {%- if config_entry_id -%}
+                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                    {%- else -%}
+                      {{- base -}}
+                    {%- endif -%}
             - conditions:
                 - condition: template
                   value_template: "{{ matching_task_info.id is none }}"
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {{ dict(
+                    {%- set base = dict(
                       title=title | string,
                       listing_name=listing_name | string,
                       supervisor_user_id=supervisor_user_id | int,
@@ -389,7 +411,12 @@ actions:
                       description='Battery at ' ~ repeat.item.percent ~ '% on '
                       ~ repeat.item.name ~ ' in ' ~ repeat.item.area
                       ~ '\n' ~ task_source_marker
-                    ) }}
+                    ) -%}
+                    {%- if config_entry_id -%}
+                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                    {%- else -%}
+                      {{- base -}}
+                    {%- endif -%}
             - conditions:
                 - condition: template
                   value_template: >-
@@ -403,11 +430,16 @@ actions:
               sequence:
                 - action: hostaway.update_task
                   data: >-
-                    {{ dict(
+                    {%- set base = dict(
                       task_id=matching_task_info.id | int,
                       can_start_from=can_start_from | trim | string,
                       should_end_by=should_end_by | trim | string
-                    ) }}
+                    ) -%}
+                    {%- if config_entry_id -%}
+                      {{- dict(**base, config_entry_id=config_entry_id) -}}
+                    {%- else -%}
+                      {{- base -}}
+                    {%- endif -%}
   - repeat:
       for_each: "{{ recovered_batteries }}"
       sequence:
@@ -418,8 +450,15 @@ actions:
             task_source_marker: >-
               Source entity: {{ repeat.item.entity_id }}
         - action: hostaway.get_tasks
-          data:
-            listing_name: "{{ repeat.item.area }}"
+          data: >-
+            {%- set base = dict(
+              listing_name=repeat.item.area | string
+            ) -%}
+            {%- if config_entry_id -%}
+              {{- dict(**base, config_entry_id=config_entry_id) -}}
+            {%- else -%}
+              {{- base -}}
+            {%- endif -%}
           response_variable: existing_tasks
         - variables:
             matching_task_info: >-
@@ -445,7 +484,7 @@ actions:
           then:
             - action: hostaway.update_task
               data: >-
-                {{ dict(
+                {%- set base = dict(
                   task_id=matching_task_info.id | int,
                   status='completed',
                   resolution_note='Battery replaced - '
@@ -453,6 +492,11 @@ actions:
                   ~ ' now at '
                   ~ repeat.item.percent
                   ~ '%'
-                ) }}
+                ) -%}
+                {%- if config_entry_id -%}
+                  {{- dict(**base, config_entry_id=config_entry_id) -}}
+                {%- else -%}
+                  {{- base -}}
+                {%- endif -%}
 
 mode: single
