@@ -340,7 +340,7 @@ actions:
                 {%- endif -%}
               {%- endfor -%}
               {%- if ns.next_checkin_dt is not none
-                 and ns.next_checkin_dt < three_days -%}
+                 and ns.next_checkin_dt < default_end_dt -%}
                 {%- set one_hour_before =
                   ns.next_checkin_dt - timedelta(hours=1) -%}
                 {%- set fifteen = ns.next_checkin_dt.replace(
