@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.8)
+  name: Hostaway Battery Task Creator (v0.9)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -69,6 +69,17 @@ blueprint:
         number:
           min: 1
           mode: box
+    assignee_user_id:
+      name: Assignee user ID
+      description: >-
+        Optional Hostaway user ID to assign created tasks to. Leave
+        at 0 for no specific assignment. Find user IDs via Developer
+        Tools → Services → hostaway.get_users.
+      default: 0
+      selector:
+        number:
+          min: 0
+          mode: box
     task_category:
       name: Task category IDs
       description: >-
@@ -104,6 +115,7 @@ variables:
   recovery_threshold: !input recovery_threshold
   supervisor_user_id: !input supervisor_user_id
   can_be_picked_by_group_id: !input can_be_picked_by_group_id
+  assignee_user_id: !input assignee_user_id
   task_category: !input task_category
   exclude: !input exclude
   config_entry_id: !input config_entry_id
@@ -417,7 +429,26 @@ actions:
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {%- if config_entry_id -%}
+                    {%- if config_entry_id and assignee_user_id | int > 0 -%}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        categories_map=task_category,
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        assignee_user_id=assignee_user_id | int,
+                        config_entry_id=config_entry_id
+                      ) -}}
+                    {%- elif config_entry_id -%}
                       {{- dict(
                         title=title | string,
                         listing_name=listing_name | string,
@@ -434,6 +465,24 @@ actions:
                         ~ repeat.item.name ~ ' in ' ~ repeat.item.area
                         ~ '\n' ~ task_source_marker,
                         config_entry_id=config_entry_id
+                      ) -}}
+                    {%- elif assignee_user_id | int > 0 -%}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        categories_map=task_category,
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        assignee_user_id=assignee_user_id | int
                       ) -}}
                     {%- else -%}
                       {{- dict(
@@ -460,7 +509,25 @@ actions:
               sequence:
                 - action: hostaway.create_task
                   data: >-
-                    {%- if config_entry_id -%}
+                    {%- if config_entry_id and assignee_user_id | int > 0 -%}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        assignee_user_id=assignee_user_id | int,
+                        config_entry_id=config_entry_id
+                      ) -}}
+                    {%- elif config_entry_id -%}
                       {{- dict(
                         title=title | string,
                         listing_name=listing_name | string,
@@ -476,6 +543,23 @@ actions:
                         ~ repeat.item.name ~ ' in ' ~ repeat.item.area
                         ~ '\n' ~ task_source_marker,
                         config_entry_id=config_entry_id
+                      ) -}}
+                    {%- elif assignee_user_id | int > 0 -%}
+                      {{- dict(
+                        title=title | string,
+                        listing_name=listing_name | string,
+                        supervisor_user_id=supervisor_user_id | int,
+                        can_be_picked_by_group_id=
+                        can_be_picked_by_group_id | int,
+                        can_start_from=can_start_from | trim | string,
+                        should_end_by=should_end_by | trim | string,
+                        status='pending',
+                        description='Battery at '
+                        ~ repeat.item.percent
+                        ~ '% on '
+                        ~ repeat.item.name ~ ' in ' ~ repeat.item.area
+                        ~ '\n' ~ task_source_marker,
+                        assignee_user_id=assignee_user_id | int
                       ) -}}
                     {%- else -%}
                       {{- dict(
