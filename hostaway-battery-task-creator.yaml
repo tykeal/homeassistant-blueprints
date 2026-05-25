@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.4)
+  name: Hostaway Battery Task Creator (v0.5)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -37,14 +37,20 @@ blueprint:
     interval:
       name: Periodic check interval
       description: How often to run the battery check.
-      default: 30
+      default: "/30"
       selector:
-        number:
-          min: 5
-          max: 60
-          mode: box
-          step: 1
-          unit_of_measurement: minutes
+        select:
+          options:
+            - label: Every 5 minutes
+              value: "/5"
+            - label: Every 10 minutes
+              value: "/10"
+            - label: Every 15 minutes
+              value: "/15"
+            - label: Every 30 minutes
+              value: "/30"
+            - label: Every 60 minutes
+              value: "/60"
     supervisor_user_id:
       name: Supervisor user ID
       description: >-
@@ -249,12 +255,9 @@ variables:
     {% endfor %}
     {{ ns.items }}
 
-trigger_variables:
-  interval: !input interval
-
 triggers:
   - trigger: time_pattern
-    minutes: "/{{ interval | int }}"
+    minutes: !input interval
 
 actions:
   - if:
