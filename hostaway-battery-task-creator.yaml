@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.2)
+  name: Hostaway Battery Task Creator (v0.3)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -102,35 +102,39 @@ variables:
   exclude: !input exclude
   config_entry_id: !input config_entry_id
   low_batteries: >-
-    {% set ns = namespace(items=[]) %}
+    {% set ns = namespace(items=[], seen_devices=[]) %}
     {% for state in states.sensor
        | selectattr('attributes.device_class', '==', 'battery') %}
       {% if 0 <= state.state | int(-1) < threshold | int
          and state.entity_id not in (exclude.entity_id | default([], true)) %}
-        {% set area = area_name(device_id(state.entity_id)) %}
+        {% set did = device_id(state.entity_id) %}
+        {% set area = area_name(did) %}
         {% if area %}
-          {% set dev = device_attr(
-            device_id(state.entity_id),
-            'name'
-          ) | default(state.name, true) %}
-          {% set slug = dev | slugify | replace('-', '_') %}
-          {% set btype_state =
-            states('sensor.' ~ slug ~ '_battery_type') %}
-          {% set btype =
-            btype_state if btype_state not in [
-              'unknown',
-              'unavailable',
-              'none',
-              ''
-            ] else 'unknown' %}
-          {% set ns.items = ns.items + [dict(
-            entity_id=state.entity_id,
-            name=dev,
-            area=area,
-            slug=slug,
-            percent=state.state | int(-1),
-            battery_type=btype
-          )] %}
+          {% if did not in ns.seen_devices %}
+            {% set dev = device_attr(
+              did,
+              'name'
+            ) | default(state.name, true) %}
+            {% set slug = dev | slugify | replace('-', '_') %}
+            {% set btype_state =
+              states('sensor.' ~ slug ~ '_battery_type') %}
+            {% set btype =
+              btype_state if btype_state not in [
+                'unknown',
+                'unavailable',
+                'none',
+                ''
+              ] else 'unknown' %}
+            {% set ns.items = ns.items + [dict(
+              entity_id=state.entity_id,
+              name=dev,
+              area=area,
+              slug=slug,
+              percent=state.state | int(-1),
+              battery_type=btype
+            )] %}
+            {% set ns.seen_devices = ns.seen_devices + [did] %}
+          {% endif %}
         {% endif %}
       {% endif %}
     {% endfor %}
@@ -138,65 +142,73 @@ variables:
        | selectattr('attributes.device_class', '==', 'battery') %}
       {% if state.state == 'on'
          and state.entity_id not in (exclude.entity_id | default([], true)) %}
-        {% set area = area_name(device_id(state.entity_id)) %}
+        {% set did = device_id(state.entity_id) %}
+        {% set area = area_name(did) %}
         {% if area %}
-          {% set dev = device_attr(
-            device_id(state.entity_id),
-            'name'
-          ) | default(state.name, true) %}
-          {% set slug = dev | slugify | replace('-', '_') %}
-          {% set btype_state =
-            states('sensor.' ~ slug ~ '_battery_type') %}
-          {% set btype =
-            btype_state if btype_state not in [
-              'unknown',
-              'unavailable',
-              'none',
-              ''
-            ] else 'unknown' %}
-          {% set ns.items = ns.items + [dict(
-            entity_id=state.entity_id,
-            name=dev,
-            area=area,
-            slug=slug,
-            percent=0,
-            battery_type=btype
-          )] %}
+          {% if did not in ns.seen_devices %}
+            {% set dev = device_attr(
+              did,
+              'name'
+            ) | default(state.name, true) %}
+            {% set slug = dev | slugify | replace('-', '_') %}
+            {% set btype_state =
+              states('sensor.' ~ slug ~ '_battery_type') %}
+            {% set btype =
+              btype_state if btype_state not in [
+                'unknown',
+                'unavailable',
+                'none',
+                ''
+              ] else 'unknown' %}
+            {% set ns.items = ns.items + [dict(
+              entity_id=state.entity_id,
+              name=dev,
+              area=area,
+              slug=slug,
+              percent=0,
+              battery_type=btype
+            )] %}
+            {% set ns.seen_devices = ns.seen_devices + [did] %}
+          {% endif %}
         {% endif %}
       {% endif %}
     {% endfor %}
     {{ ns.items }}
   recovered_batteries: >-
-    {% set ns = namespace(items=[]) %}
+    {% set ns = namespace(items=[], seen_devices=[]) %}
     {% for state in states.sensor
        | selectattr('attributes.device_class', '==', 'battery') %}
       {% if 0 <= state.state | int(-1)
          and state.state | int(-1) >= recovery_threshold | int
          and state.entity_id not in (exclude.entity_id | default([], true)) %}
-        {% set area = area_name(device_id(state.entity_id)) %}
+        {% set did = device_id(state.entity_id) %}
+        {% set area = area_name(did) %}
         {% if area %}
-          {% set dev = device_attr(
-            device_id(state.entity_id),
-            'name'
-          ) | default(state.name, true) %}
-          {% set slug = dev | slugify | replace('-', '_') %}
-          {% set btype_state =
-            states('sensor.' ~ slug ~ '_battery_type') %}
-          {% set btype =
-            btype_state if btype_state not in [
-              'unknown',
-              'unavailable',
-              'none',
-              ''
-            ] else 'unknown' %}
-          {% set ns.items = ns.items + [dict(
-            entity_id=state.entity_id,
-            name=dev,
-            area=area,
-            slug=slug,
-            percent=state.state | int(-1),
-            battery_type=btype
-          )] %}
+          {% if did not in ns.seen_devices %}
+            {% set dev = device_attr(
+              did,
+              'name'
+            ) | default(state.name, true) %}
+            {% set slug = dev | slugify | replace('-', '_') %}
+            {% set btype_state =
+              states('sensor.' ~ slug ~ '_battery_type') %}
+            {% set btype =
+              btype_state if btype_state not in [
+                'unknown',
+                'unavailable',
+                'none',
+                ''
+              ] else 'unknown' %}
+            {% set ns.items = ns.items + [dict(
+              entity_id=state.entity_id,
+              name=dev,
+              area=area,
+              slug=slug,
+              percent=state.state | int(-1),
+              battery_type=btype
+            )] %}
+            {% set ns.seen_devices = ns.seen_devices + [did] %}
+          {% endif %}
         {% endif %}
       {% endif %}
     {% endfor %}
@@ -204,30 +216,34 @@ variables:
        | selectattr('attributes.device_class', '==', 'battery') %}
       {% if state.state == 'off'
          and state.entity_id not in (exclude.entity_id | default([], true)) %}
-        {% set area = area_name(device_id(state.entity_id)) %}
+        {% set did = device_id(state.entity_id) %}
+        {% set area = area_name(did) %}
         {% if area %}
-          {% set dev = device_attr(
-            device_id(state.entity_id),
-            'name'
-          ) | default(state.name, true) %}
-          {% set slug = dev | slugify | replace('-', '_') %}
-          {% set btype_state =
-            states('sensor.' ~ slug ~ '_battery_type') %}
-          {% set btype =
-            btype_state if btype_state not in [
-              'unknown',
-              'unavailable',
-              'none',
-              ''
-            ] else 'unknown' %}
-          {% set ns.items = ns.items + [dict(
-            entity_id=state.entity_id,
-            name=dev,
-            area=area,
-            slug=slug,
-            percent=100,
-            battery_type=btype
-          )] %}
+          {% if did not in ns.seen_devices %}
+            {% set dev = device_attr(
+              did,
+              'name'
+            ) | default(state.name, true) %}
+            {% set slug = dev | slugify | replace('-', '_') %}
+            {% set btype_state =
+              states('sensor.' ~ slug ~ '_battery_type') %}
+            {% set btype =
+              btype_state if btype_state not in [
+                'unknown',
+                'unavailable',
+                'none',
+                ''
+              ] else 'unknown' %}
+            {% set ns.items = ns.items + [dict(
+              entity_id=state.entity_id,
+              name=dev,
+              area=area,
+              slug=slug,
+              percent=100,
+              battery_type=btype
+            )] %}
+            {% set ns.seen_devices = ns.seen_devices + [did] %}
+          {% endif %}
         {% endif %}
       {% endif %}
     {% endfor %}
