@@ -172,6 +172,12 @@ triggers:
   - trigger: time_pattern
     hours: !input check_interval
     id: periodic_sync
+  - trigger: homeassistant
+    event: start
+    id: startup_sync
+  - trigger: event
+    event_type: automation_reloaded
+    id: reload_sync
   - trigger: template
     value_template: >-
       {%- set rc_device = device_name(_rc) | slugify -%}
