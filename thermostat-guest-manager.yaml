@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Thermostat Guest Schedule Manager (v0.2)
+  name: Thermostat Guest Schedule Manager (v0.3)
   description: |
     Manages thermostat settings based on Rental Control guest occupancy.
     Runs an energy-saving schedule between guests, pushes a target
@@ -146,6 +146,10 @@ blueprint:
 
 mode: restart
 
+trigger_variables:
+  _rc: !input rental_control_calendar
+  _max_events: !input max_events
+
 variables:
   rc: !input rental_control_calendar
   max_events: !input max_events
@@ -160,16 +164,6 @@ variables:
 
   # Derived
   rc_device: "{{ device_name(rc) | slugify }}"
-  rc_event_entities: >-
-    {%- set ns = namespace(entities=[]) -%}
-    {%- for i in range(max_events | int) -%}
-      {%- set ns.entities = ns.entities +
-      ['sensor.rental_control_' ~ rc_device
-      ~ '_event_' ~ i,
-      'sensor.' ~ rc_device
-      ~ '_rental_control_event_' ~ i] -%}
-    {%- endfor -%}
-    {{ ns.entities }}
 
 triggers:
   - trigger: state
@@ -178,20 +172,36 @@ triggers:
   - trigger: time_pattern
     hours: !input check_interval
     id: periodic_sync
-  # state_changed fires for every entity; the condition below
-  # filters to our event sensors. HA state triggers do not
-  # support templated entity_id, so this is the recommended
-  # workaround for dynamically derived entity lists.
+  - trigger: homeassistant
+    event: start
+    id: startup_sync
   - trigger: event
-    event_type: state_changed
-    id: event_sensor_update
-
-conditions:
-  - condition: template
+    event_type: automation_reloaded
+    id: reload_sync
+  - trigger: template
     value_template: >-
-      {{ trigger.id != 'event_sensor_update'
-      or trigger.event.data.entity_id
-      in rc_event_entities }}
+      {%- set rc_device = device_name(_rc) | slugify -%}
+      {%- set ns = namespace(entities=[], latest=none) -%}
+      {%- for i in range(_max_events | int) -%}
+        {%- set ns.entities = ns.entities +
+        ['sensor.rental_control_' ~ rc_device ~ '_event_' ~ i,
+        'sensor.' ~ rc_device
+        ~ '_rental_control_event_' ~ i] -%}
+      {%- endfor -%}
+      {%- for entity in ns.entities
+        if states[entity] is not none -%}
+        {%- set updated = states[entity].last_updated -%}
+        {%- if ns.latest is none or updated > ns.latest -%}
+          {%- set ns.latest = updated -%}
+        {%- endif -%}
+      {%- endfor -%}
+      {%- set automation = states[this.entity_id] -%}
+      {%- set baseline =
+        automation.attributes.last_triggered
+        if automation.attributes.last_triggered is not none
+        else automation.last_updated -%}
+      {{ ns.latest is not none and ns.latest > baseline }}
+    id: event_sensor_update
 
 actions:
   - variables:
