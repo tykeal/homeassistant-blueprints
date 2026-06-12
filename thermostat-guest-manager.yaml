@@ -164,16 +164,6 @@ variables:
 
   # Derived
   rc_device: "{{ device_name(rc) | slugify }}"
-  rc_event_entities: >-
-    {%- set ns = namespace(entities=[]) -%}
-    {%- for i in range(max_events | int) -%}
-      {%- set ns.entities = ns.entities +
-      ['sensor.rental_control_' ~ rc_device
-      ~ '_event_' ~ i,
-      'sensor.' ~ rc_device
-      ~ '_rental_control_event_' ~ i] -%}
-    {%- endfor -%}
-    {{ ns.entities }}
 
 triggers:
   - trigger: state
