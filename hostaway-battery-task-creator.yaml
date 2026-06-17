@@ -154,9 +154,6 @@ variables:
   task_category: !input task_category
   exclude: !input exclude
   config_entry_id: !input config_entry_id
-  on_task_created: !input on_task_created
-  on_task_rescheduled: !input on_task_rescheduled
-  on_task_completed: !input on_task_completed
   created_tasks: []
   rescheduled_tasks: []
   completed_tasks: []
