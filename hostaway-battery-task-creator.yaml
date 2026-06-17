@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # SPDX-FileCopyrightText: 2026 Andrew Grimberg <tykeal@bardicgrove.org>
 blueprint:
-  name: Hostaway Battery Task Creator (v0.9)
+  name: Hostaway Battery Task Creator (v0.10)
   description: >-
     Creates or updates Hostaway battery replacement tasks for low
     battery sensors and completes them after batteries recover.
@@ -109,6 +109,41 @@ blueprint:
       selector:
         config_entry:
           integration: hostaway
+    on_task_created:
+      name: Actions on task created
+      description: >-
+        Optional actions to run after one or more new Hostaway
+        battery tasks are created. Runs once at the end of the check.
+        The {{ tasks }} variable is a list of dicts, one per created
+        task, each with: listing_name, device_name, entity_id,
+        battery_percent, battery_type, task_id.
+      default: []
+      selector:
+        action: {}
+    on_task_rescheduled:
+      name: Actions on task rescheduled
+      description: >-
+        Optional actions to run after one or more existing Hostaway
+        battery tasks are rescheduled (start/end times updated). Runs
+        once at the end of the check. The {{ tasks }} variable is a
+        list of dicts, one per rescheduled task, each with:
+        listing_name, device_name, entity_id, battery_percent,
+        battery_type, task_id.
+      default: []
+      selector:
+        action: {}
+    on_task_completed:
+      name: Actions on task completed
+      description: >-
+        Optional actions to run after one or more Hostaway battery
+        tasks are completed because the battery recovered. Runs once
+        at the end of the check. The {{ tasks }} variable is a list of
+        dicts, one per completed task, each with: listing_name,
+        device_name, entity_id, battery_percent, battery_type,
+        task_id.
+      default: []
+      selector:
+        action: {}
 
 variables:
   threshold: !input threshold
@@ -119,6 +154,9 @@ variables:
   task_category: !input task_category
   exclude: !input exclude
   config_entry_id: !input config_entry_id
+  created_tasks: []
+  rescheduled_tasks: []
+  completed_tasks: []
   low_batteries: >-
     {% set ns = namespace(items=[], seen_devices=[]) %}
     {% for state in states.sensor
@@ -503,6 +541,17 @@ actions:
                       ) -}}
                     {%- endif -%}
                   response_variable: task_result
+                - variables:
+                    created_tasks: >-
+                      {{ created_tasks + [dict(
+                        listing_name=repeat.item.area,
+                        device_name=repeat.item.name,
+                        entity_id=repeat.item.entity_id,
+                        battery_percent=repeat.item.percent,
+                        battery_type=repeat.item.battery_type,
+                        task_id=task_result.id
+                          | default(matching_task_info.id, true)
+                      )] }}
             - conditions:
                 - condition: template
                   value_template: "{{ matching_task_info.id is none }}"
@@ -579,6 +628,17 @@ actions:
                       ) -}}
                     {%- endif -%}
                   response_variable: task_result
+                - variables:
+                    created_tasks: >-
+                      {{ created_tasks + [dict(
+                        listing_name=repeat.item.area,
+                        device_name=repeat.item.name,
+                        entity_id=repeat.item.entity_id,
+                        battery_percent=repeat.item.percent,
+                        battery_type=repeat.item.battery_type,
+                        task_id=task_result.id
+                          | default(matching_task_info.id, true)
+                      )] }}
             - conditions:
                 - condition: template
                   value_template: >-
@@ -607,6 +667,17 @@ actions:
                       ) -}}
                     {%- endif -%}
                   response_variable: task_result
+                - variables:
+                    rescheduled_tasks: >-
+                      {{ rescheduled_tasks + [dict(
+                        listing_name=repeat.item.area,
+                        device_name=repeat.item.name,
+                        entity_id=repeat.item.entity_id,
+                        battery_percent=repeat.item.percent,
+                        battery_type=repeat.item.battery_type,
+                        task_id=task_result.id
+                          | default(matching_task_info.id, true)
+                      )] }}
   - repeat:
       for_each: "{{ recovered_batteries }}"
       sequence:
@@ -674,5 +745,43 @@ actions:
                   ) -}}
                 {%- endif -%}
               response_variable: task_result
+            - variables:
+                completed_tasks: >-
+                  {{ completed_tasks + [dict(
+                    listing_name=repeat.item.area,
+                    device_name=repeat.item.name,
+                    entity_id=repeat.item.entity_id,
+                    battery_percent=repeat.item.percent,
+                    battery_type=repeat.item.battery_type,
+                    task_id=task_result.id
+                      | default(matching_task_info.id, true)
+                  )] }}
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ created_tasks | count > 0 }}"
+        sequence:
+          - variables:
+              tasks: "{{ created_tasks }}"
+          - choose: []
+            default: !input on_task_created
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ rescheduled_tasks | count > 0 }}"
+        sequence:
+          - variables:
+              tasks: "{{ rescheduled_tasks }}"
+          - choose: []
+            default: !input on_task_rescheduled
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ completed_tasks | count > 0 }}"
+        sequence:
+          - variables:
+              tasks: "{{ completed_tasks }}"
+          - choose: []
+            default: !input on_task_completed
 
 mode: single
