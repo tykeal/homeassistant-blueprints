@@ -1,0 +1,280 @@
+---
+# yamllint disable rule:line-length
+
+uix_foundries:
+  # Macros foundry
+  macro_manager:
+    forge:
+      macros:
+        rc_id:
+          params:
+            - entity_id
+          template: >-
+            {%- set event_side = entity_id.split('.') | last -%} {%- set no_ending =
+            event_side | regex_replace('_(event_.*|check_in)$', '') -%} {%- set
+            no_rc = no_ending | regex_replace('_?rental_control_?', '') -%} {{ no_rc
+            }}
+        get_checkin_icon:
+          params:
+            - entity_id
+          template: >-
+            {%- set cur_state = states(entity_id) -%} {%- if cur_state ==
+            'no_reservation' -%}mdi:bed-empty{%- else -%}mdi:account{%- endif -%}
+        get_checkin_badge:
+          params:
+            - entity_id
+          template: >-
+            {%- set cur_state = states(entity_id) -%} {%- if cur_state ==
+            'awaiting_checkin' -%}mdi:door-open{%- elif cur_state == 'checked_in'
+            -%}mdi:check{%- elif cur_state == 'checked_out' -%}mdi:airplane{%- else
+            -%}mdi:null{%- endif -%}
+        get_checkin_color:
+          params:
+            - entity_id
+          template: >-
+            {%- set cur_state = states(entity_id) -%} {%- if cur_state ==
+            'awaiting_checkin' -%}blue{%- elif cur_state == 'checked_in' -%}green{%-
+            elif cur_state == 'checked_out' -%}red{%- else -%}gray{%- endif -%}
+        friendly_date:
+          params:
+            - entity_id
+            - attrib
+          template: >-
+            {{ as_datetime(state_attr(entity_id, attrib)).strftime('%B %-d, %Y %H:%M') }}
+        get_current_event:
+          params:
+            - entity_id
+          template: >-
+            {%- set cur_state = states(entity_id) -%}
+            {%- set rc = rc_id(entity_id) -%}
+            {%- set event0 = "sensor." ~ "rental_control_" ~ rc ~ "_event_0" -%}
+            {%- set event1 = "sensor." ~ "rental_control_" ~ rc ~ "_event_1" -%}
+            {%- if states(event0) is none -%}
+              {%- set event0 = "sensor." ~ rc ~ "_rental_control_event_0" -%}
+              {%- set event1 = "sensor." ~ rc ~ "_rental_control_event_1" -%}
+            {%- endif -%}
+            {%- set cur_event = event0 %}
+            {%- if state_attr(event1, 'end') -%}
+                {%- if as_datetime(state_attr(event0, 'end')) <= now() -%}
+                  {%- set cur_event = event1 -%}
+                {%- endif -%}
+            {%- endif -%}
+            {{ cur_event }}
+        get_calendar:
+          params:
+            - entity_id
+          template: >-
+            {%- set rc = rc_id(entity_id) -%}
+            {%- set calendar = "calendar.rental_control_" ~ rc ~ "_guests" -%}
+            {%- if states(calendar) is none -%}
+              {%- set calendar = "calendar." ~ rc ~ "_rental_control_guests" -%}
+            {%- endif -%}
+            {{ calendar }}
+        get_event_num:
+          params:
+            - entity_id
+            - event_num
+          template: >-
+            {%- set rc = rc_id(entity_id) -%}
+            {%- set event = "sensor." ~ "rental_control_" ~ rc ~ "_event_" ~ event_num -%}
+            {%- if states(event) is none -%}
+              {%- set event = "sensor." ~ rc ~ "_rental_control_event_" ~ event_num -%}
+            {%- endif -%}
+            {{ event }}
+        get_guest_info:
+          params:
+            - event
+          template: |-
+            {%- set guest = state_attr(event, 'guest_name') -%}
+            {%- if guest -%}
+            {{ guest }}
+            Start: {{ friendly_date(event, 'start') }}
+            End: {{ friendly_date(event, 'end') }}
+            {%- else -%}
+            No reservation
+            {%- endif -%}
+
+  # Small Guest info card
+  guest_card:
+    foundry: macro_manager
+    forge:
+      mold: card
+    element:
+      type: custom:mushroom-template-card
+      primary: >-
+        {{ state_attr(config.entity, 'friendly_name') | regex_replace(' Check-in') }} -  {{ state_translated(config.entity) }}
+      secondary: |
+        {{ get_guest_info(config.entity) }}
+      icon: "{{ get_checkin_icon(config.entity) }}"
+      icon_color: "{{ get_checkin_color(config.entity) }}"
+      badge_icon: "{{ get_checkin_badge(config.entity) }}"
+      badge_color: "{{ get_checkin_color(config.entity) }}"
+      features_position: bottom
+      multiline_secondary: true
+      grid_options:
+        columns: full
+      tap_action:
+        action: navigate
+        navigation_path: /lovelace/{{ state_attr(config.entity, 'friendly_name') | slugify }}
+
+  # Guest badge
+  guest_badge:
+    foundry: macro_manager
+    forge:
+      mold: badge
+    element:
+      type: custom:mushroom-template-badge
+      content: "{{ state_translated(config.entity) }}"
+      icon: "{{ get_checkin_icon(config.entity) }}"
+      color: "{{ get_checkin_color(config.entity) }}"
+      label: "{{ state_attr(config.entity, 'friendly_name') }}"
+
+  # Automatic guest card
+  auto-guest_card:
+    forge:
+      billets:
+        status_title: Room Status
+      mold: card
+    element:
+      card:
+        columns: 1
+        square: false
+        title: "{{ status_title }}"
+        type: grid
+      card_param: cards
+      filter:
+        exclude: []
+        include:
+          - entity_id:
+              active_choice: entity
+              entity: "{{ config.entity }}"
+            options:
+              type: custom:uix-forge
+              foundry: guest_card
+              element:
+                entity: this.entity_id
+      show_empty: true
+      sort:
+        method: name
+      type: custom:auto-entities
+
+  # Guest information card
+  current_guest:
+    foundry: macro_manager
+    forge:
+      mold: card
+      macros:
+        state_color:
+          params:
+            - entity_id
+          template: |-
+            {% if state_attr(entity_id, 'start') %}
+            {{ 'green' if as_datetime(state_attr(entity_id, 'start')) <= now() and
+              as_datetime(state_attr(entity_id, 'end')) >= now() else 'grey'
+            }}
+            {% else %}grey{% endif %}
+        code_slot:
+          params:
+            - entity_id
+          template: >-
+            {% if state_attr(entity_id, 'slot_number') %}{{ state_attr(entity_id,
+            'slot_number') }}{% else %}1{% endif %}
+        sync_status:
+          params:
+            - entity_id
+          template: |
+            {% if code_slot(entity_id) %} [ {% for lock_sensor in doors %}
+              'sensor.{{ lock_sensor }}_code_slot_{{ code_slot(entity_id) }}_sync_status',
+            {% endfor %} ] {% endif %}
+        reservation_type:
+          params:
+            - entity_id
+          template: |
+            {% if entity_id.split("_") | last == "0" %}Current / Last{%
+            else %}Upcoming / Current{% endif %}
+      billets:
+        doors:
+          - frontdoor
+          - r11
+        primary_door: "{doors[0]}"
+    element:
+      type: vertical-stack
+      cards:
+        - type: heading
+          icon: mdi:calendar-check
+          heading: "{{ reservation_type(config.entity) }} Reservation"
+          heading_style: title
+        - type: custom:mushroom-template-card
+          icon: mdi:account
+          features_position: bottom
+          entity: "{{ config.entity }}"
+          primary: Guest
+          secondary: << state_attr(entity, 'slot_name') >>
+          grid_options:
+            columns: full
+          color: "{{ state_color(config.entity) }}"
+          tap_action:
+            action: none
+          icon_tap_action:
+            action: none
+        - type: horizontal-stack
+          cards:
+            - type: custom:mushroom-template-card
+              icon: mdi:timer-play
+              features_position: bottom
+              entity: "{{ config.entity }}"
+              primary: Booking Start
+              secondary: |-
+                {%- if state_attr(config.entity, 'start') -%}
+                  {{ friendly_date(config.entity, 'start') }}
+                {%- else -%}
+                No reservation
+                {%- endif -%}
+              color: "{{ state_color(config.entity) }}"
+              tap_action:
+                action: none
+              icon_tap_action:
+                action: none
+            - type: custom:mushroom-template-card
+              icon: mdi:timer-stop
+              feature_position: bottom
+              entity: "{{ config.entity }}"
+              primary: Booking End
+              secondary: |-
+                {%- if state_attr(config.entity, 'end') -%}
+                  {{ friendly_date(config.entity, 'end') }}
+                {%- else -%}
+                No reservation
+                {%- endif -%}
+              color: "{{ state_color(config.entity) }}"
+              tap_action:
+                action: none
+              icon_tap_action:
+                action: none
+        - type: custom:mushroom-template-card
+          icon: mdi:lock-smart
+          primary: PIN
+          features_position: bottom
+          entity: "{{ config.entity }}"
+          secondary: << state_attr(entity, 'slot_code') >>
+          color: "{{ state_color(config.entity) }}"
+          tap_action:
+            action: fire-dom-event
+            browser_mod:
+              service: browser_mod.more_info
+              data:
+                large: false
+                ignore_popup_card: false
+                close: false
+                entity: >-
+                  text.{{ primary_door }}_code_slot_{{ code_slot(config.entity)
+                  }}_pin
+          icon_tap_action:
+            action: none
+        - type: heading
+          icon: mdi:lock
+          heading: Code status
+          heading_stype: title
+        - type: entities
+          entities: |
+            {{ sync_status(config.entity) }}
