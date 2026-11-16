@@ -81,9 +81,13 @@ blueprint:
         reservation UUID, description = door code sent, due date =
         check-out date). Delete an item to allow the message to be
         sent again. Items are removed automatically after check-out.
+        The list must support item descriptions and due dates.
       selector:
         entity:
-          domain: todo
+          filter:
+            - domain: todo
+              supported_features:
+                - todo.TodoListEntityFeature.SET_DESCRIPTION_ON_ITEM
     send_immediately:
       name: Send Immediately
       description: >-
@@ -234,6 +238,21 @@ actions:
             Test mode is on but no test notify action is set;
             no messages were sent.
       - stop: Test notify action not set
+  # create, delete, update, due date and description
+  - if:
+      - condition: template
+        value_template: >-
+          {{ state_attr(sent_tracker, 'supported_features')
+          | int(0) | bitwise_and(87) != 87 }}
+    then:
+      - action: system_log.write
+        data:
+          level: error
+          logger: "{{ log_name }}"
+          message: >-
+            {{ sent_tracker }} does not support item descriptions and
+            due dates; no messages were sent.
+      - stop: Unsupported sent tracker
   - action: todo.get_items
     target:
       entity_id: "{{ sent_tracker }}"
@@ -443,6 +462,28 @@ actions:
 
                               {{ final_body }}
                       else:
+                        # Record before sending so a failed record or a
+                        # restart mid-send can never cause a resend.
+                        - if:
+                            - condition: template
+                              value_template: >-
+                                {{ tracker_matches | count > 0 }}
+                          then:
+                            - action: todo.update_item
+                              target:
+                                entity_id: "{{ sent_tracker }}"
+                              data:
+                                item: "{{ tracker_matches[0].uid }}"
+                                description: "{{ door_code }}"
+                                due_date: "{{ due_date }}"
+                          else:
+                            - action: todo.add_item
+                              target:
+                                entity_id: "{{ sent_tracker }}"
+                              data:
+                                item: "{{ reservation_uuid }}"
+                                description: "{{ door_code }}"
+                                due_date: "{{ due_date }}"
                         - variables:
                             send_result: {}
                         - action: hospitable.send_message
@@ -455,33 +496,10 @@ actions:
                         - if:
                             - condition: template
                               value_template: >-
-                                {{ send_result is mapping
+                                {{ not (send_result is mapping
                                 and send_result.accepted
-                                | default(false) == true }}
+                                | default(false) == true) }}
                           then:
-                            - if:
-                                - condition: template
-                                  value_template: >-
-                                    {{ tracker_matches | count > 0 }}
-                              then:
-                                - action: todo.update_item
-                                  target:
-                                    entity_id: "{{ sent_tracker }}"
-                                  data:
-                                    item: >-
-                                      {{ tracker_matches[0].uid
-                                      or reservation_uuid }}
-                                    description: "{{ door_code }}"
-                                    due_date: "{{ due_date }}"
-                              else:
-                                - action: todo.add_item
-                                  target:
-                                    entity_id: "{{ sent_tracker }}"
-                                  data:
-                                    item: "{{ reservation_uuid }}"
-                                    description: "{{ door_code }}"
-                                    due_date: "{{ due_date }}"
-                          else:
                             - action: system_log.write
                               data:
                                 level: warning
@@ -491,17 +509,57 @@ actions:
                                   code message for reservation
                                   {{ reservation_uuid }}; it will be
                                   retried on the next run.
+                            # Roll back the record so the next run
+                            # retries the send.
+                            - if:
+                                - condition: template
+                                  value_template: >-
+                                    {{ tracker_matches | count > 0 }}
+                              then:
+                                - action: todo.update_item
+                                  continue_on_error: true
+                                  target:
+                                    entity_id: "{{ sent_tracker }}"
+                                  data: >-
+                                    {%- set m = tracker_matches[0] -%}
+                                    {%- set d = {'item': m.uid,
+                                    'description': m.description} -%}
+                                    {{ dict(d, due_date=m.due)
+                                    if m.due != '' else d }}
+                              else:
+                                - action: todo.remove_item
+                                  continue_on_error: true
+                                  target:
+                                    entity_id: "{{ sent_tracker }}"
+                                  data:
+                                    item: "{{ reservation_uuid }}"
   - if:
       - condition: template
         value_template: "{{ not test_mode }}"
     then:
       - variables:
+          # Reservations still on an RC event sensor are kept even
+          # when their recorded check-out date has passed.
+          active_uuids: >-
+            {%- set ns = namespace(uuids=[]) -%}
+            {%- for e in rc_event_entities -%}
+              {%- set uid = state_attr(e, 'uid') | string -%}
+              {%- set end = as_datetime(state_attr(e, 'end'), none)
+              if state_attr(e, 'end') is not none else none -%}
+              {%- if has_value(e) and uid.endswith(uid_suffix)
+              and (end is none or end > now()) -%}
+                {%- set ns.uuids = ns.uuids
+                + [uid[:-(uid_suffix | length)]] -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {{ ns.uuids }}
           expired_items: >-
             {%- set today = now().strftime('%Y-%m-%d') -%}
             {{ sent_items
             | selectattr('due', 'ne', '')
             | selectattr('uid', 'ne', '')
             | selectattr('due', 'lt', today)
+            | rejectattr('summary', 'in', active_uuids)
             | map(attribute='uid') | list }}
       - if:
           - condition: template
