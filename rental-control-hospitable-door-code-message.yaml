@@ -253,31 +253,6 @@ actions:
             {{ sent_tracker }} does not support item descriptions and
             due dates; no messages were sent.
       - stop: Unsupported sent tracker
-  - action: todo.get_items
-    target:
-      entity_id: "{{ sent_tracker }}"
-    data:
-      status:
-        - needs_action
-        - completed
-    response_variable: tracker_response
-  - variables:
-      sent_items: >-
-        {%- set ns = namespace(items=[]) -%}
-        {%- set resp = tracker_response
-        if tracker_response is mapping else {} -%}
-        {%- set raw = (resp.get(sent_tracker) or {}).get('items')
-        or [] -%}
-        {%- for i in raw -%}
-          {%- set ns.items = ns.items + [{
-          'uid': i.uid | default('', true) | string,
-          'summary': i.summary | default('', true) | string,
-          'description': i.description
-          | default('', true) | string | trim,
-          'due': (i.due | default('', true) | string)[:10]
-          }] -%}
-        {%- endfor -%}
-        {{ ns.items }}
   - repeat:
       count: "{{ max_events | int }}"
       sequence:
@@ -308,6 +283,33 @@ actions:
                 and (state_attr(event_entity, 'uid') | string)
                 .endswith(uid_suffix) }}
           then:
+            # Re-read the tracker before every send decision so a
+            # record written earlier in this run is always seen.
+            - action: todo.get_items
+              target:
+                entity_id: "{{ sent_tracker }}"
+              data:
+                status:
+                  - needs_action
+                  - completed
+              response_variable: tracker_response
+            - variables:
+                sent_items: >-
+                  {%- set ns = namespace(items=[]) -%}
+                  {%- set resp = tracker_response
+                  if tracker_response is mapping else {} -%}
+                  {%- set raw = (resp.get(sent_tracker) or {}).get('items')
+                  or [] -%}
+                  {%- for i in raw -%}
+                    {%- set ns.items = ns.items + [{
+                    'uid': i.uid | default('', true) | string,
+                    'summary': i.summary | default('', true) | string,
+                    'description': i.description
+                    | default('', true) | string | trim,
+                    'due': (i.due | default('', true) | string)[:10]
+                    }] -%}
+                  {%- endfor -%}
+                  {{ ns.items }}
             - variables:
                 door_code: >-
                   {{ state_attr(event_entity,
@@ -493,6 +495,8 @@ actions:
                             reservation_uuid=reservation_uuid,
                             body=final_body | string) }}
                           response_variable: send_result
+                        # An error can follow a send Hospitable accepted,
+                        # so the record is kept to never message twice.
                         - if:
                             - condition: template
                               value_template: >-
@@ -505,38 +509,43 @@ actions:
                                 level: warning
                                 logger: "{{ log_name }}"
                                 message: >-
-                                  Hospitable did not accept the door
-                                  code message for reservation
-                                  {{ reservation_uuid }}; it will be
-                                  retried on the next run.
-                            # Roll back the record so the next run
-                            # retries the send.
-                            - if:
-                                - condition: template
-                                  value_template: >-
-                                    {{ tracker_matches | count > 0 }}
-                              then:
-                                - action: todo.update_item
-                                  continue_on_error: true
-                                  target:
-                                    entity_id: "{{ sent_tracker }}"
-                                  data: >-
-                                    {%- set m = tracker_matches[0] -%}
-                                    {%- set d = {'item': m.uid,
-                                    'description': m.description} -%}
-                                    {{ dict(d, due_date=m.due)
-                                    if m.due != '' else d }}
-                              else:
-                                - action: todo.remove_item
-                                  continue_on_error: true
-                                  target:
-                                    entity_id: "{{ sent_tracker }}"
-                                  data:
-                                    item: "{{ reservation_uuid }}"
+                                  Could not confirm the door code
+                                  message for Hospitable reservation
+                                  {{ reservation_uuid }}. It is still
+                                  recorded as sent so the guest is not
+                                  messaged twice. Check the guest
+                                  thread in Hospitable and delete the
+                                  {{ reservation_uuid }} item from
+                                  {{ sent_tracker }} to retry.
   - if:
       - condition: template
         value_template: "{{ not test_mode }}"
     then:
+      - action: todo.get_items
+        target:
+          entity_id: "{{ sent_tracker }}"
+        data:
+          status:
+            - needs_action
+            - completed
+        response_variable: tracker_response
+      - variables:
+          sent_items: >-
+            {%- set ns = namespace(items=[]) -%}
+            {%- set resp = tracker_response
+            if tracker_response is mapping else {} -%}
+            {%- set raw = (resp.get(sent_tracker) or {}).get('items')
+            or [] -%}
+            {%- for i in raw -%}
+              {%- set ns.items = ns.items + [{
+              'uid': i.uid | default('', true) | string,
+              'summary': i.summary | default('', true) | string,
+              'description': i.description
+              | default('', true) | string | trim,
+              'due': (i.due | default('', true) | string)[:10]
+              }] -%}
+            {%- endfor -%}
+            {{ ns.items }}
       - variables:
           # Reservations still on an RC event sensor are kept even
           # when their recorded check-out date has passed.
